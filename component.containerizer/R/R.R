@@ -20,6 +20,10 @@ main <- function() {
       id='outputs_div',
       h4('Outputs')
     ),
+    div(
+      id='params_div',
+      h4('Params')
+    ),
     selectInput('base_image_selector', 'Base Image', c()),
     actionButton('create_button', 'Create'),
   )
@@ -127,26 +131,20 @@ main <- function() {
           extraction_results <<- rjson::fromJSON(httr2::resp_body_json(response), simplify=FALSE)
         }, error=function(e) { print(e) })
 
-        if ('inputs' %in% names(extraction_results) && length(extraction_results[['inputs']]) != 0) {
-          inputs <- extraction_results[['inputs']]
-          removeUI('div:has(> [id^="input_type_"])', multiple=TRUE)
-          lapply(grep('^input_type_', names(input), value=TRUE), function(id) { removeUI(paste0('#', id)) })
-          insertUI(selector='#inputs_div', where='beforeEnd',
-                   ui=tagList(lapply(1:length(inputs), function(i) { selectInput(paste0('input_type_', inputs[i]), inputs[i], choices=type_choices) }))
-          )
-          shinyjs::show('inputs_div')
+        categories <- c('input', 'output', 'param')
+        for (category in categories) {
+          plural <- paste0(category, 's')
+          div_name <- paste0(plural, '_div')
+          if (plural %in% names(extraction_results) && length(extraction_results[[plural]])) {
+            IDs <- extraction_results[[plural]]
+            removeUI(paste0('div:has(> [id^="', category, '_type_"])'), multiple=TRUE)
+            insertUI(selector=paste0('#', div_name), where='beforeEnd',
+                     ui=tagList(lapply(1:length(IDs), function(i) { selectInput(paste0(category, '_type_', IDs[i]), IDs[i], choices=type_choices)}))
+            )
+            shinyjs::show(div_name)
+          }
+          else { shinyjs::hide(div_name) }
         }
-        else { shinyjs::hide('inputs_div') }
-
-        if ('outputs' %in% names(extraction_results) && length(extraction_results[['outputs']]) != 0) {
-          outputs <- extraction_results[['outputs']]
-          removeUI('div:has(> [id^="output_type_"])', multiple=TRUE)
-          insertUI(selector='#outputs_div', where='beforeEnd',
-                   ui=tagList(lapply(1:length(outputs), function(i) { selectInput(paste0('output_type_', outputs[i]), outputs[i], choices=type_choices) }))
-          )
-          shinyjs::show('outputs_div')
-        }
-        else { shinyjs::hide('outputs_div') }
       }
     })
 
@@ -176,6 +174,7 @@ main <- function() {
 
     shinyjs::hide('inputs_div')
     shinyjs::hide('outputs_div')
+    shinyjs::hide('params_div')
 
     parsing_results <- parse_md()
 

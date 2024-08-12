@@ -1,0 +1,21 @@
+```{r}
+param_p <- 'abc'
+```
+```{r}
+# Input list
+library(dplyr)
+names <- c('Alice', 'Bob')
+```
+```{r}
+library(stringr)
+# Process list
+for (name in names) {
+  print(paste0('Hello, ', name))
+}
+x <- 1
+print(param_p)
+print(stringr::str_interp('p = ${param_p}'))
+```
+```{r}
+print(x)
+```
