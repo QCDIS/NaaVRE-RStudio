@@ -30,6 +30,7 @@ main <- function() {
   server <- function(input, output, session) {
     linesep <- '\n'
     type_choices = c('Integer'='int', 'Float'='float', 'String'='str', 'List'='list')
+    categories <- c('input', 'output', 'param')
 
     API_ENDPOINT <- Sys.getenv('API_ENDPOINT')
     CONTAINERIZER_PREFIX <- 'api/containerizer'
@@ -131,15 +132,15 @@ main <- function() {
           extraction_results <<- rjson::fromJSON(httr2::resp_body_json(response), simplify=FALSE)
         }, error=function(e) { print(e) })
 
-        categories <- c('input', 'output', 'param')
         for (category in categories) {
           plural <- paste0(category, 's')
           div_name <- paste0(plural, '_div')
+          prefix <- paste0(category, '_type_')
           if (plural %in% names(extraction_results) && length(extraction_results[[plural]])) {
             IDs <- extraction_results[[plural]]
-            removeUI(paste0('div:has(> [id^="', category, '_type_"])'), multiple=TRUE)
+            removeUI(paste0('div:has(> [id^="', prefix, '"])'), multiple=TRUE)
             insertUI(selector=paste0('#', div_name), where='beforeEnd',
-                     ui=tagList(lapply(1:length(IDs), function(i) { selectInput(paste0(category, '_type_', IDs[i]), IDs[i], choices=type_choices)}))
+                     ui=tagList(lapply(1:length(IDs), function(i) { selectInput(paste0(prefix, IDs[i]), IDs[i], choices=type_choices)}))
             )
             shinyjs::show(div_name)
           }
@@ -150,16 +151,14 @@ main <- function() {
 
     observeEvent(input$create_button, {
       extraction_results[['base_image']] <- base_image_list[[input$base_image_selector]]
-      prefices <- c('input_type_', 'output_type_')
+      # prefices <- c('input_type_', 'output_type_', 'param_type_')
+      prefices <- lapply(categories, function(c) { paste0(c, '_type_') })
+      types <- list()
       for (prefix in prefices) {
         type_IDs <- grep(paste0('^', prefix), names(input), value=TRUE)
-        if (length(type_IDs) > 0) {
-          types <- list()
-          for (ID in type_IDs) { types[[substr(ID, nchar(prefix) + 1, nchar(ID))]] <- input[[ID]] }
-          extraction_results[['types']] <- types
-          break
-        }
+        if (length(type_IDs) > 0) { for (ID in type_IDs) { types[[substr(ID, nchar(prefix) + 1, nchar(ID))]] <- input[[ID]] } }
       }
+      extraction_results[['types']] <- types
 
       request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/addcell'))
       request <- httr2::req_method(request, 'POST')
