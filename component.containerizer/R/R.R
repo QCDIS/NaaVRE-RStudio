@@ -50,6 +50,7 @@ main <- function() {
       rmd_chunks <- list() # c() causes 'Error in <-: attempt to set an attribute on NULL'
       rmd_chunk_indices <- list()
       rmd_offset_indices <- list()
+      rmd_chunk_labels <- list()
       tryCatch({
         rmd <- parsermd::parse_rmd(current_doc$content)
         for (i in seq_along(rmd)) {
@@ -78,7 +79,8 @@ main <- function() {
         updateSelectInput(session, 'code_chunk_selector', choices=choices_placeholder)
         error <<- 'parsing'
       })
-      return(list('error'=error, 'rmd'=rmd, 'rmd_chunks'=rmd_chunks, 'rmd_chunk_indices'=rmd_chunk_indices, 'rmd_offset_indices'=rmd_offset_indices))
+      if (error == '') { rmd_chunk_labels <- lapply(rmd_chunks, function(node) parsermd::rmd_node_label(node)) }
+      return(list('error'=error, 'rmd'=rmd, 'rmd_chunks'=rmd_chunks, 'rmd_chunk_indices'=rmd_chunk_indices, 'rmd_offset_indices'=rmd_offset_indices, 'rmd_chunk_labels'=rmd_chunk_labels))
     }
 
     observeEvent(input$parse_button, {
@@ -93,9 +95,7 @@ main <- function() {
                  'Parsing done')
         )) # cat/paste0 cannot handle trailing comma in its arg list
       })
-      if (parsing_results[['error']] != '') { rmd_chunk_labels <<- list() } # c() returns NULL
-      else { rmd_chunk_labels <- lapply(parsing_results[['rmd_chunks']], function(node) parsermd::rmd_node_label(node)) }
-      updateSelectInput(session, 'code_chunk_selector', choices=setNames(parsing_results[['rmd_chunk_indices']], rmd_chunk_labels))
+      updateSelectInput(session, 'code_chunk_selector', choices=setNames(parsing_results[['rmd_chunk_indices']], parsing_results[['rmd_chunk_labels']]))
     })
 
     observeEvent(input$code_chunk_selector, {
@@ -167,6 +167,7 @@ main <- function() {
       request <- httr2::req_body_raw(request, rjson::toJSON(extraction_results))
       tryCatch({
         response <- httr2::req_perform(request)
+        print(paste0('For ', parsermd::rmd_node_label(parsing_results[['rmd']][[as.integer(input$code_chunk_selector)]]), ' :'))
         print(httr2::resp_body_json(response))
       }, error=function(e) { print(e) })
     })
