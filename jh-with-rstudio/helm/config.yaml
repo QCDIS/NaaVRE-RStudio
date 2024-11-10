@@ -25,8 +25,8 @@ debug:
 hub:
   config:
     KubeSpawner:
-      delete_grace_period: 300  # Time in seconds before forcefully killing the pod
-      delete_stopped_pods: false  # Prevents deletion of stopped pods
+      # delete_grace_period: 300  # Time in seconds before forcefully killing the pod
+      # delete_stopped_pods: false  # Prevents deletion of stopped pods
       container_security_context:
         privileged: true
         runAsUser: 0
