@@ -11,15 +11,10 @@
 
 singleuser:
   defaultUrl: '/rstudio'
-  # defaultUrl: /lab
   image:
     name: andybayerroswell/naavre-rstudio
-    # name: d9320wfowfe/jfrw0tgjwpgkeokyrh
-    # name: rocker/binder
-    # name: jupyter/datascience-notebook
     tag: latest
     pullPolicy: IfNotPresent
-  # cmd: ['/init']
   cmd: null
   # extraEnv:
   #   PASSWORD: 0
