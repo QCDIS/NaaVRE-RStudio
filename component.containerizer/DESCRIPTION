@@ -1,19 +1,21 @@
 Package: component.containerizer
 Type: Package
-Title: What the Package Does (Title Case)
-Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Title: Cell Containerizer
+Version: 0.0.0
+Author: /
+Maintainer: n.a <n.a@n.a>
+Description: -
+    -
+License: -
 Encoding: UTF-8
 LazyData: true
 Depends:
     R
 Imports:
     shiny,
+    shinyjs,
     rstudioapi,
     devtools,
     parsermd,
+    rjson,
 RoxygenNote: 7.3.2

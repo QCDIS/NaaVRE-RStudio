@@ -16,4 +16,10 @@ RUN apt-get update && \
     rm /tmp/rstudio.deb && \
     apt-get clean
 ENV PATH=$PATH:/usr/lib/rstudio-server/bin
-# USER $NB_USER
+
+# install RStudio extension CellContainerizer
+COPY component.containerizer component.containerizer
+RUN cd component.containerizer && \
+    Rscript -e "install.packages('devtools')" && \
+    Rscript -e "devtools::install()"
+RUN rm -rf ../component.containerizer

@@ -35,7 +35,10 @@ library(ggplot2)
 # Data Visualization
 
 ```{r}
-# Scatter plot of mpg vs. disp ggplot(mtcars, aes(x=disp, y=mpg)) + geom_point() + labs(title="Scatter plot of Miles Per Gallon vs. Displacement", x="Displacement", y="Miles Per Gallon")
+# Scatter plot of mpg vs. 
+# disp ggplot(mtcars, aes(x=disp, y=mpg)) + geom_point() + labs(title="Scatter plot of Miles Per Gallon vs. Displacement", x="Displacement", y="Miles Per Gallon")
+
+# it seems exceedingly long comments at the beginning of this code chunk will make backend generate exceedingly long names and make github action 500.
 ```
 
 # Conclusion
