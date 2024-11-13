@@ -19,7 +19,6 @@ ENV PATH=$PATH:/usr/lib/rstudio-server/bin
 
 # install RStudio extension CellContainerizer
 COPY component.containerizer component.containerizer
-RUN cd component.containerizer && \
-    Rscript -e "install.packages('devtools')" && \
-    Rscript -e "devtools::install()"
-RUN rm -rf ../component.containerizer
+WORKDIR ./component.containerizer
+RUN Rscript -e "install.packages('devtools')"
+RUN Rscript -e "devtools::install()" && rm -rf ../component.containerizer

@@ -13,7 +13,7 @@ singleuser:
   defaultUrl: '/rstudio'
   image:
     name: andybayerroswell/naavre-rstudio
-    tag: 20241111-1214
+    tag: 20241111-1742
     pullPolicy: IfNotPresent
   cmd: null
   
