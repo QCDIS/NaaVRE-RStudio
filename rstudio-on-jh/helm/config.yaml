@@ -16,6 +16,17 @@ singleuser:
     tag: 20241114-1810
     pullPolicy: IfNotPresent
   cmd: null
+  extraEnv:
+    API_ENDPOINT:
+      valueFrom:
+        configMapKeyRef:
+          name: configmap-naavre-rstudio
+          key: API_ENDPOINT
+    NAAVRE_API_TOKEN:
+      valueFrom:
+        secretKeyRef:
+          name: secret-naavre-rstudio
+          key: NAAVRE_API_TOKEN
   
 # debug:
 #   enabled: true
