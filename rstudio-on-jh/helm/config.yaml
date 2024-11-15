@@ -13,7 +13,7 @@ singleuser:
   defaultUrl: '/rstudio'
   image:
     name: andybayerroswell/naavre-rstudio
-    tag: 20241114-1810
+    tag: 20241115-1343
     pullPolicy: IfNotPresent
   cmd: null
   extraEnv:
@@ -27,6 +27,10 @@ singleuser:
         secretKeyRef:
           name: secret-naavre-rstudio
           key: NAAVRE_API_TOKEN
+  lifecycleHooks:
+    postStart:
+      exec:
+        command: [ 'bash', '-c', 'echo "API_ENDPOINT=${API_ENDPOINT}" > ~/.Renviron && echo "NAAVRE_API_TOKEN=${NAAVRE_API_TOKEN}" >> ~/.Renviron' ]
   
 # debug:
 #   enabled: true
