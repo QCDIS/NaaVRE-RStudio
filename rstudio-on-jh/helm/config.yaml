@@ -13,7 +13,7 @@ singleuser:
   defaultUrl: '/rstudio'
   image:
     name: andybayerroswell/naavre-rstudio
-    tag: 20241115-1343
+    tag: 20241121-2124
     pullPolicy: IfNotPresent
   cmd: null
   extraEnv:
@@ -30,7 +30,7 @@ singleuser:
   lifecycleHooks:
     postStart:
       exec:
-        command: [ 'bash', '-c', 'echo "API_ENDPOINT=${API_ENDPOINT}" > ~/.Renviron && echo "NAAVRE_API_TOKEN=${NAAVRE_API_TOKEN}" >> ~/.Renviron' ]
+        command: [ 'bash', '-c', 'echo "API_ENDPOINT=${API_ENDPOINT}" > ~/.Renviron && echo "NAAVRE_API_TOKEN=${NAAVRE_API_TOKEN}" >> ~/.Renviron && echo "JUPYTERHUB_USER=${JUPYTERHUB_USER}" >> ~/.Renviron && echo "RENV_CONFIG_EXTERNAL_LIBRARIES=/opt/conda/lib/R/library" >> ~/.Renviron' ]
   
 # debug:
 #   enabled: true

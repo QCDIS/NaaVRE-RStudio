@@ -1,0 +1,45 @@
+global:
+  environment: test
+
+  ingress:
+    host: "naavre-dev.minikube.test"
+
+  base_paths:
+    development:
+      vreapi: "/vre-api-test"
+      vreapp: "/vreapp"
+
+  keycloak:
+    url: https://naavre-dev.minikube.test/auth
+    realm: vre
+    client_id: naavre
+    client_secret_key: fake_openid_client_secret
+
+  argo:
+    namespace: default
+    url: https://naavre-dev.minikube.test/argowf
+    token: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjJNUTJQQ0hqSGtPeUMtRGZNT1ZIeXBzVmU4dmxSeW5UNDBXMTBjdGNKT3cifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJhcmdvIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6InZyZS1hcGkuc2VydmljZS1hY2NvdW50LXRva2VuIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQubmFtZSI6InZyZS1hcGkiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiIyM2MwYjE1OC05MGU1LTQ0MDUtYjc4NS1iNDNiM2U2NWQ4NTAiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXJnbzp2cmUtYXBpIn0.NDmKtirNqsSFnV38SCFtYYNW2dG4udMALVNxtE08RPSEyonvOwCqJ7vgmtZroc_67Z8wUAMQBUI5uQlhWrLQLPbVgAY9DQRWsWwORWZVvdGVbyvtE5ALVWfNzapQNaeB1S7NWx8XfGKcrQN8b4Ca7BZ5pY17WFaIirMfLwwgbrZIWXZtQaposkskVYJe6MUzbaaxFr3zJ0s05C-0MYCJaMXsY914_pnfwdAyvVjmT-kJ-k8gy1dzqndDdH5VJru2q86kjlaKeLDd-0C7hsYaL_7-r_76yTJIrYa3JqRiVRLg6QNmRjWdL6eYPim_-c1hJ9LUoMojuEVBYT1blfBTxQ
+
+  k8s_secret_creator:
+    url: https://naavre-dev.minikube.test/k8s-secret-creator/1.0.0/
+    token: token_ksc
+
+vreapi:
+  secret_key: "dev_secret_key_vreapi"
+  auth:
+    superuser_email: "admin@naavre-dev.minikube.test"
+    superuser_username: "admin"
+    superuser_password: "admin"
+    username: "user"
+    password: "user"
+    token: "token_vreapi"
+  insecureSkipTLSVerification: true
+  image:
+    repository: qcdis/vreapi
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: ""
+
+vreapp:
+  secret_key: "dev_secret_key_vreapp"
+  insecureSkipTLSVerification: true
