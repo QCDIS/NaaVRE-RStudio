@@ -123,7 +123,8 @@ main <- function() {
             'rmarkdown' = paste0(current_doc$content, collapse='\n'),
             'rmarkdown_offset_indices' = parsing_results$rmd_offset_indices,
             'cell_index' = cell_index,
-            'kernel' = switch(parsermd::rmd_node_engine(parsing_results$rmd[[cell_index]]), 'r'='IRkernel', 'python'='ipykernel', '')
+            'kernel' = switch(parsermd::rmd_node_engine(parsing_results$rmd[[cell_index]]), 'r'='IRkernel', 'python'='ipykernel', ''),
+            'JUPYTERHUB_USER' = Sys.getenv('JUPYTERHUB_USER')
           ),
           auto_unbox = TRUE)
         )
@@ -151,7 +152,6 @@ main <- function() {
 
     observeEvent(input$create_button, {
       extraction_results[['base_image']] <- base_image_list[[input$base_image_selector]]
-      # prefices <- c('input_type_', 'output_type_', 'param_type_')
       prefices <- lapply(categories, function(c) { paste0(c, '_type_') })
       types <- list()
       for (prefix in prefices) {
