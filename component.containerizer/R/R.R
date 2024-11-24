@@ -7,7 +7,7 @@
 main <- function() {
   ui <- fluidPage(
     shinyjs::useShinyjs(),
-    h1('Cell Containerizer'),
+    h1('Component containerizer'),
     htmlOutput('doc_info_output'),
     actionButton('parse_button', 'Parse'),
     selectInput('code_chunk_selector', 'Select Code Chunk', c(), selectize=TRUE),
@@ -26,6 +26,7 @@ main <- function() {
     ),
     selectInput('base_image_selector', 'Base Image', c()),
     actionButton('create_button', 'Create'),
+    htmlOutput('creation_result_output')
   )
   server <- function(input, output, session) {
     linesep <- '\n'
@@ -35,7 +36,7 @@ main <- function() {
     API_ENDPOINT <- Sys.getenv('API_ENDPOINT')
     CONTAINERIZER_PREFIX <- 'api/containerizer'
     NAAVRE_API_TOKEN <- Sys.getenv('NAAVRE_API_TOKEN')
-    choices_placeholder <- c(' ') # # blank [ex. c(), c(''), list(), list('')] or NULL will not trigger event handler thus code_output will not be updated. https://bookdown.org/yihui/rmarkdown/r-code.html does not recommend using spaces in code chunk labels.
+    choices_placeholder <- c(' ') # blank [ex. c(), c(''), list(), list('')] or NULL will not trigger event handler thus code_output will not be updated. https://bookdown.org/yihui/rmarkdown/r-code.html does not recommend using spaces in code chunk labels.
 
     base_image_list <- list()
     current_doc <- NULL
@@ -95,6 +96,7 @@ main <- function() {
                  'Parsing done')
         )) # cat/paste0 cannot handle trailing comma in its arg list
       })
+      output$creation_result_output <- renderUI({ NULL })
       updateSelectInput(session, 'code_chunk_selector', choices=setNames(parsing_results[['rmd_chunk_indices']], parsing_results[['rmd_chunk_labels']]))
     })
 
@@ -113,6 +115,7 @@ main <- function() {
         }
         return(HTML(paste0('<pre>', selected_code, '</pre>')))
       })
+      output$creation_result_output <- renderUI({ NULL })
 
       if (!is.na(cell_index)) {
         request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/extract'))
@@ -169,7 +172,11 @@ main <- function() {
         response <- httr2::req_perform(request)
         print(paste0('For ', parsermd::rmd_node_label(parsing_results[['rmd']][[as.integer(input$code_chunk_selector)]]), ' :'))
         print(httr2::resp_body_json(response))
-      }, error=function(e) { print(e) })
+        output$creation_result_output <- renderUI({ HTML('<p style="color:green;">The cell has been successfully created!</p>') })
+      }, error=function(e) {
+        print(e)
+        output$creation_result_output <- renderUI({ HTML('<p style="color:red;">ERROR creating cell.</p>') })
+      })
     })
 
     shinyjs::hide('inputs_div')
