@@ -35,10 +35,9 @@ vreapi:
     token: "token_vreapi"
   insecureSkipTLSVerification: true
   image:
-    repository: qcdis/vreapi
+    repository: andybayerroswell/vreapi
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
-    tag: ""
+    tag: "20241126-2330"
 
 vreapp:
   secret_key: "dev_secret_key_vreapp"
