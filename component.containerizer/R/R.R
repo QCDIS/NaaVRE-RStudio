@@ -6,8 +6,9 @@
 
 main <- function() {
   print_exec_duration <- function(f) {
-    print(paste0('[', deparse(substitute(f)), '] Duration:'))
-    print(system.time({ f() }))
+    t <- system.time({ f() })
+    cat('Execution duration of function', deparse(substitute(f)), ':\n')
+    print(t)
   }
 
   ui <- fluidPage(
