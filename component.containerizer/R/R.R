@@ -5,6 +5,11 @@
 #' @import parsermd
 
 main <- function() {
+  print_exec_duration <- function(f) {
+    print(paste0('[', deparse(substitute(f)), '] Duration:'))
+    print(system.time({ f() }))
+  }
+
   ui <- fluidPage(
     shinyjs::useShinyjs(),
     h1('Component containerizer'),
@@ -85,98 +90,110 @@ main <- function() {
     }
 
     observeEvent(input$parse_button, {
-      parsing_results <<- parse_md()
-      output$doc_info_output <- renderUI({
-        HTML(paste0(
-          '<b>Document ID: </b>', current_doc$id, '<br>',
-          '<b>Document Path: </b>', current_doc$path, '<br>',
-          switch(parsing_results[['error']],
-                 'no code'='No code snippets found',
-                 'parsing'='<p style="color:red;">Parsing ERROR</p>',
-                 'Parsing done')
-        )) # cat/paste0 cannot handle trailing comma in its arg list
-      })
-      output$creation_result_output <- renderUI({ NULL })
-      updateSelectInput(session, 'code_chunk_selector', choices=setNames(parsing_results[['rmd_chunk_indices']], parsing_results[['rmd_chunk_labels']]))
+      parse <- function() {
+        parsing_results <<- parse_md()
+        output$doc_info_output <- renderUI({
+          HTML(paste0(
+            '<b>Document ID: </b>', current_doc$id, '<br>',
+            '<b>Document Path: </b>', current_doc$path, '<br>',
+            switch(parsing_results[['error']],
+                   'no code'='No code snippets found',
+                   'parsing'='<p style="color:red;">Parsing ERROR</p>',
+                   'Parsing done')
+          )) # cat/paste0 cannot handle trailing comma in its arg list
+        })
+        output$creation_result_output <- renderUI({ NULL })
+        updateSelectInput(session, 'code_chunk_selector', choices=setNames(parsing_results[['rmd_chunk_indices']], parsing_results[['rmd_chunk_labels']]))
+      }
+
+      print_exec_duration(parse)
     })
 
     observeEvent(input$code_chunk_selector, {
-      cell_index <- as.numeric(input$code_chunk_selector)
+      extract <- function() {
+        cell_index <- as.numeric(input$code_chunk_selector)
 
-      output$code_output <- renderUI({
-        if (is.na(cell_index)) { selected_code <<- '' }
-        else {
-          selected_node <- parsing_results$rmd[[cell_index]]
-          if (is.null(selected_node)) { selected_code <<- '' }
+        output$code_output <- renderUI({
+          if (is.na(cell_index)) { selected_code <<- '' }
           else {
-            code_statements <- parsermd::rmd_node_code(selected_node)
-            selected_code <<- paste(unlist(code_statements), collapse='<br>')
+            selected_node <- parsing_results$rmd[[cell_index]]
+            if (is.null(selected_node)) { selected_code <<- '' }
+            else {
+              code_statements <- parsermd::rmd_node_code(selected_node)
+              selected_code <<- paste(unlist(code_statements), collapse='<br>')
+            }
           }
-        }
-        return(HTML(paste0('<pre>', selected_code, '</pre>')))
-      })
-      output$creation_result_output <- renderUI({ NULL })
+          return(HTML(paste0('<pre>', selected_code, '</pre>')))
+        })
+        output$creation_result_output <- renderUI({ NULL })
 
-      if (!is.na(cell_index)) {
-        request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/extract'))
-        request <- httr2::req_method(request, 'POST')
-        request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'), 'Content-Type'='application/json')
-        request <- httr2::req_body_raw(request, jsonlite::toJSON(
-          list(
-            'rmarkdown' = paste0(current_doc$content, collapse='\n'),
-            'rmarkdown_offset_indices' = parsing_results$rmd_offset_indices,
-            'cell_index' = cell_index,
-            'kernel' = switch(parsermd::rmd_node_engine(parsing_results$rmd[[cell_index]]), 'r'='IRkernel', 'python'='ipykernel', ''),
-            'JUPYTERHUB_USER' = Sys.getenv('JUPYTERHUB_USER')
-          ),
-          auto_unbox = TRUE)
-        )
-        tryCatch({
-          response <- httr2::req_perform(request)
-          extraction_results <<- rjson::fromJSON(httr2::resp_body_json(response), simplify=FALSE)
-        }, error=function(e) { print(e) })
+        if (!is.na(cell_index)) {
+          request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/extract'))
+          request <- httr2::req_method(request, 'POST')
+          request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'), 'Content-Type'='application/json')
+          request <- httr2::req_body_raw(request, jsonlite::toJSON(
+            list(
+              'rmarkdown' = paste0(current_doc$content, collapse='\n'),
+              'rmarkdown_offset_indices' = parsing_results$rmd_offset_indices,
+              'cell_index' = cell_index,
+              'kernel' = switch(parsermd::rmd_node_engine(parsing_results$rmd[[cell_index]]), 'r'='IRkernel', 'python'='ipykernel', ''),
+              'JUPYTERHUB_USER' = Sys.getenv('JUPYTERHUB_USER')
+            ),
+            auto_unbox = TRUE)
+          )
+          tryCatch({
+            response <- httr2::req_perform(request)
+            extraction_results <<- rjson::fromJSON(httr2::resp_body_json(response), simplify=FALSE)
+          }, error=function(e) { print(e) })
 
-        for (category in categories) {
-          plural <- paste0(category, 's')
-          div_name <- paste0(plural, '_div')
-          prefix <- paste0(category, '_type_')
-          if (plural %in% names(extraction_results) && length(extraction_results[[plural]])) {
-            IDs <- extraction_results[[plural]]
-            removeUI(paste0('div:has(> [id^="', prefix, '"])'), multiple=TRUE)
-            insertUI(selector=paste0('#', div_name), where='beforeEnd',
-                     ui=tagList(lapply(1:length(IDs), function(i) { selectInput(paste0(prefix, IDs[i]), IDs[i], choices=type_choices)}))
-            )
-            shinyjs::show(div_name)
+          for (category in categories) {
+            plural <- paste0(category, 's')
+            div_name <- paste0(plural, '_div')
+            prefix <- paste0(category, '_type_')
+            if (plural %in% names(extraction_results) && length(extraction_results[[plural]])) {
+              IDs <- extraction_results[[plural]]
+              removeUI(paste0('div:has(> [id^="', prefix, '"])'), multiple=TRUE)
+              insertUI(selector=paste0('#', div_name), where='beforeEnd',
+                       ui=tagList(lapply(1:length(IDs), function(i) { selectInput(paste0(prefix, IDs[i]), IDs[i], choices=type_choices)}))
+              )
+              shinyjs::show(div_name)
+            }
+            else { shinyjs::hide(div_name) }
           }
-          else { shinyjs::hide(div_name) }
         }
       }
+
+      print_exec_duration(extract)
     })
 
     observeEvent(input$create_button, {
-      extraction_results[['base_image']] <- base_image_list[[input$base_image_selector]]
-      prefices <- lapply(categories, function(c) { paste0(c, '_type_') })
-      types <- list()
-      for (prefix in prefices) {
-        type_IDs <- grep(paste0('^', prefix), names(input), value=TRUE)
-        if (length(type_IDs) > 0) { for (ID in type_IDs) { types[[substr(ID, nchar(prefix) + 1, nchar(ID))]] <- input[[ID]] } }
-      }
-      extraction_results[['types']] <- types
+      create <- function() {
+        extraction_results[['base_image']] <- base_image_list[[input$base_image_selector]]
+        prefices <- lapply(categories, function(c) { paste0(c, '_type_') })
+        types <- list()
+        for (prefix in prefices) {
+          type_IDs <- grep(paste0('^', prefix), names(input), value=TRUE)
+          if (length(type_IDs) > 0) { for (ID in type_IDs) { types[[substr(ID, nchar(prefix) + 1, nchar(ID))]] <- input[[ID]] } }
+        }
+        extraction_results[['types']] <- types
 
-      request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/addcell'))
-      request <- httr2::req_method(request, 'POST')
-      request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'), 'Content-Type'='application/json')
-      # print(rjson::toJSON(extraction_results))
-      request <- httr2::req_body_raw(request, rjson::toJSON(extraction_results))
-      tryCatch({
-        response <- httr2::req_perform(request)
-        print(paste0('For ', parsermd::rmd_node_label(parsing_results[['rmd']][[as.integer(input$code_chunk_selector)]]), ' :'))
-        print(httr2::resp_body_json(response))
-        output$creation_result_output <- renderUI({ HTML('<p style="color:green;">The cell has been successfully created!</p>') })
-      }, error=function(e) {
-        print(e)
-        output$creation_result_output <- renderUI({ HTML('<p style="color:red;">ERROR creating cell.</p>') })
-      })
+        request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/addcell'))
+        request <- httr2::req_method(request, 'POST')
+        request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'), 'Content-Type'='application/json')
+        # print(rjson::toJSON(extraction_results))
+        request <- httr2::req_body_raw(request, rjson::toJSON(extraction_results))
+        tryCatch({
+          response <- httr2::req_perform(request)
+          print(paste0('For ', parsermd::rmd_node_label(parsing_results[['rmd']][[as.integer(input$code_chunk_selector)]]), ' :'))
+          print(httr2::resp_body_json(response))
+          output$creation_result_output <- renderUI({ HTML('<p style="color:green;">The cell has been successfully created!</p>') })
+        }, error=function(e) {
+          print(e)
+          output$creation_result_output <- renderUI({ HTML('<p style="color:red;">ERROR creating cell.</p>') })
+        })
+      }
+
+      print_exec_duration(create)
     })
 
     shinyjs::hide('inputs_div')
@@ -185,13 +202,17 @@ main <- function() {
 
     parsing_results <- parse_md()
 
-    request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/baseimagetags'))
-    request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'))
-    tryCatch({
-      response <- httr2::req_perform(request)
-      base_image_list <- httr2::resp_body_json(response)
-      updateSelectInput(session, 'base_image_selector', choices=names(base_image_list), selected='r')
-    }, error=function(e) { print(e) })
+    get_base_images <- function() {
+      request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/baseimagetags'))
+      request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'))
+      tryCatch({
+        response <- httr2::req_perform(request)
+        base_image_list <- httr2::resp_body_json(response)
+        updateSelectInput(session, 'base_image_selector', choices=names(base_image_list), selected='r')
+      }, error=function(e) { print(e) })
+    }
+
+    print_exec_duration(get_base_images)
   }
   runGadget(ui, server)
 }
