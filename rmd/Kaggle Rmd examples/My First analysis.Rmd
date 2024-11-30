@@ -1,0 +1,110 @@
+---
+title: "Analysis of world Population"
+author: "James Akemu"
+date: "2023-12-25"
+output: html_document
+---
+
+# Analysis of World Population
+
+In this Project, We will take a look at the countries and continents of the world and what the data about their population from 1970-2022 tell us. We will conduct a descriptive analysis of our dataset. Firstly let's import and clean our data.
+## Load the Necessary packages.
+
+```{r}
+library(tidyverse)
+```
+
+## Import the data and clean it
+
+```{r}
+world_population <- read_csv("other/world_population.csv", 
+     col_types = cols(Rank = col_number(), 
+         Continent = col_factor(levels = c("Asia", 
+             "Africa", "Oceania", "Europe", 
+             "North America", "South America")), 
+         `2022 Population` = col_number(), 
+         `2020 Population` = col_number(), 
+         `2015 Population` = col_number(), 
+         `2010 Population` = col_number(), 
+         `2000 Population` = col_number(), 
+         `1990 Population` = col_number(), 
+         `1980 Population` = col_number(), 
+         `1970 Population` = col_number(), 
+         `Area (km²)` = col_number(), `Density (per km²)` = col_number(), 
+         `Growth Rate` = col_number(), `World Population Percentage` = col_number()))
+```
+
+We just changed the data types for each population year to *numeric*. Now we can run our actual analysis.
+
+### Largest and smallest countries in the world
+
+```{r}
+large <- world_population %>%  arrange(desc(`2022 Population`))
+head(large)
+```
+
+The Six Largest countries in the world are China, India, US, Indonesia, Pakistan, and Nigeria.
+
+```{r}
+small <- world_population %>% arrange(`2022 Population`)
+head(small)
+```
+
+The Six smallest countries in the world are Vatican City, Tokelau, Niue, Falkland Islands, Monsterrat, and Saint Pierre and Miquelon.
+
+### Percentage increase in Population from 1970 to 2022
+
+```{r}
+new_column <- mutate(world_population, percent_change = round(((`2022 Population` - `1970 Population`)/ `1970 Population`) * 100))
+per_increase <- new_column %>% select(`Country/Territory`, Continent, `2022 Population`, `1970 Population`, percent_change) %>% 
+  arrange(desc(percent_change))
+head(per_increase)
+```
+
+The United Arab Emirates experienced the largest population increase from 1970 to 2022 rising over 3000%. The reasons for this are not examined in this analysis. 5 out of the top 6 countries with the highest percentage increase are located in Africa or Asia.
+
+### Countries with least increase in population during this same period.
+
+```{r}
+new_column %>% select(`Country/Territory`, Continent, `2022 Population`, `1970 Population`, percent_change) %>% arrange(percent_change)
+```
+Some countries like the Vatican, Latvia and Georgia saw a decrease in their populations.
+
+
+The total world population is:
+
+```{r}
+sum(world_population$`2022 Population`)
+```
+
+We can graph it in a bar chart by continent
+
+```{r}
+ggplot(data = sum_cont) + geom_col(mapping = aes(x = Continent, y = sum_2022, fill = Continent)) +
+  ggtitle('Total World Population by Continent') + labs(x = 'Continent', y = 'Population')
+```
+
+### \# Population by continent
+
+```{r}
+total_pop <- world_population %>% group_by(Continent) %>% summarise(
+  sum_2022 = sum(`2022 Population`),
+  sum_2020 = sum(`2020 Population`),
+  sum_2015 = sum(`2015 Population`),
+  sum_2010 = sum(`2010 Population`),
+  sum_2000 = sum(`2000 Population`),
+  sum_1990 = sum(`1990 Population`),
+  sum_1980 = sum(`1980 Population`),
+  sum_1970 = sum(`1970 Population`)
+)
+View(total_pop)
+```
+
+### Continent by growth rate from 1970-2022
+
+```{r}
+cont_growth <- total_pop %>% mutate(percent_change = ((sum_2022 - sum_1970)/sum_1970) * 100) %>% arrange(desc(percent_change))
+head(cont_growth)
+```
+
+Africa had the most population growth of all continents. The Least growth was experienced by Europe whose population rose by only 13.3% through 1970 to 2022.

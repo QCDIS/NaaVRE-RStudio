@@ -1,0 +1,386 @@
+
+
+---
+title: "GoT"
+author: "Chris Buetti"
+date: "August 9, 2016"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r,echo=FALSE, message = FALSE}
+library(ggplot2) #For graphing
+library(dplyr) #Data manipulation
+library(formattable) #Nice format
+library(lubridate) #Dates
+library(rworldmap) #Map Graphing
+library(RColorBrewer) #color palletes
+library(plotly) #graphing
+library(gridExtra)
+library(rpart.plot)
+library(rpart)
+
+
+
+#Read Data
+battles <- read.csv("../input/battles.csv", header=TRUE, stringsAsFactors=TRUE)
+
+#Tidying the data
+#remove unnecessary columns
+battles<-battles %>% select(name,year,attacker_king,defender_king,attacker_outcome,battle_type,major_death,attacker_size,defender_size,location,region)
+#year column
+battles$year<-as.numeric(battles$year)
+```
+
+# Preface
+Kaggle has provided us with an awesome Game of Thrones data set. The ultimate goal of this report is to create a decision tree that predicts the outcome of a battle using the year, attacker king, defender king, battle type, attacker size, defender size, and location. First, however, we will do some simpler exploratory analysis to get us started. Although it will be tough, I will try to do this with as little spoilers as possible. One at a time, we will see how each of these variables is related (or not related) to battle outcome. __This is my first kaggle kernel. PLEASE feel free to comment and criticize in any way you feel. I am looking to improve.__
+
+# Major Error in the Data
+From doing an anlysis on this data, I realized there is a major error. The data set has mixed up the attacker king and defender king for the Battle of Castle Black
+```{r}
+filter(battles,name=="Battle of Castle Black")
+```
+
+When we look at The Battle of Castle Black from this data set, we see that it says Stannis Baratheon is the Attacker King with a 100,000 person army and Mance was the defender king with a 1,240 person army. Being a fan of the show, in addition to checking the [Wiki of Fire and Ice Website](http://awoiaf.westeros.org/index.php/Battle_of_Castle_Black), we know this is wrong. Not to worry, I will fix up the data set.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+#fixing error
+correct<- battles %>% 
+  filter(name=="Battle of Castle Black") %>% 
+  mutate(def_king = attacker_king, att_king= defender_king) %>% 
+  select(name,year,att_king,def_king,attacker_outcome,battle_type,major_death,attacker_size,defender_size,location,region)
+  # making a correct row
+names(correct)[3:4]<-c("attacker_king","defender_king") #renaming correct row
+battles<- filter(battles,name!="Battle of Castle Black") #Removed the incorrect row
+battles<-rbind(battles,correct) #adding in the correct row
+```
+
+```{r}
+filter(battles,name=="Battle of Castle Black") #check
+#much better
+```
+
+Although I have fixed this, it drastically changes the analysis I had already performed.
+
+# Each King's Performance
+
+## Kings on the Offensive
+The data has each king's performance when he was both the agressor and the defender. Does making the first move help? or does it hurt?
+
+Let's look at how each king faired when he was the attacker. 
+
+```{r,echo=FALSE, message = FALSE, warning= FALSE}
+battles_attackersuccess<- as.data.frame(table(battles$attacker_king,battles$attacker_outcome)) #Attacker Data Frame
+names(battles_attackersuccess)[1:2]<-c("King","Outcome") #Naming
+battles_attackersuccess<-filter(battles_attackersuccess,King!="",Outcome!="") #Remove unknown data
+battles_attackersuccess$King<-factor(battles_attackersuccess$King,levels=battles_attackersuccess$King[order(-battles_attackersuccess$Freq)]) #Order
+```
+
+```{r,echo=FALSE, warning = FALSE,fig.align='center'}
+#Table
+attack_successWL<-data.frame(King=unique(battles_attackersuccess$King),win=c(7,13,8,2,0,0),loss=c(0,1,2,1,1,0)) #Manually entering record
+attack_successWL<- attack_successWL %>% arrange(desc(win)) #Sort order
+attack_successWL<-mutate(attack_successWL,"win_percentage"= round(((win)/(win+loss) * 100),2)) #Add win percentge
+attack_successWL #print table
+```
+
+```{r,echo=FALSE, warning = FALSE,fig.align='center'}
+attackplot<-ggplot(battles_attackersuccess,aes(King,Freq,fill=Outcome))+
+  geom_bar(stat='identity',col='black')+
+  ggtitle('Attacker King Success')+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+
+  scale_fill_manual(values=c("firebrick","deepskyblue"))
+
+attackplot #print attacker king graph
+```
+
+
+
+* Joffrey/Tommen has the most wins at 13, with only 1 loss. 
+* Robb Stark came in second when it comes to wins with 8 He only had 2 losses.
+* Balon/Euron had 7 wins, but not a single loss (does this mean the Greyjoys are unstoppable?). 
+* Stannis had 2 wins and 1 losses.
+* Mance Rayder's only attack was unsuccessful
+* Renly did not attack
+
+We see how each king did when he was the aggressor, but what about when he was the one who was attacked? Lets look at the results when these kings were on the defensive.
+
+## Kings on the Defensive
+We saw before how each king did when he was on the offensive, but that's only one side of the story. Let's look how each king held up when he was the one who was attacked.
+
+
+
+```{r,echo=FALSE, message = FALSE, warning= FALSE}
+defender_function<-function(x){
+  if("win" %in% x){
+    return("loss")
+  }
+  else if("loss" %in% x){
+    return("win")
+  }
+}
+# ^ This function references attacker outcome to make defender outcome
+
+battles$defender_outcome<-sapply(battles$attacker_outcome,defender_function) #run the function
+battles$defender_outcome<-sapply(battles$attacker_outcome,as.factor) #turn into factor
+
+
+battles_defsuccess<- as.data.frame(table(battles$defender_king,battles$defender_outcome)) #Get Defender King Data
+names(battles_defsuccess)[1:2]<-c("King","Outcome") #Rename
+battles_defsuccess<-filter(battles_defsuccess,King!="",Outcome!="") #Remove unknown data
+battles_defsuccess$King<-factor(battles_defsuccess$King,levels=battles_defsuccess$King[order(-battles_defsuccess$Freq)]) #Order the data
+```
+
+
+```{r,echo=FALSE, message = FALSE, warning= FALSE,fig.align='center'}
+def_successWL<-data.frame(King=c("Balon/Euron Greyjoy","Joffrey/Tommen Baratheon","Robb Stark","Mance Rayder","Stannis Baratheon","Renly Baratheon"),win=c(4,9,13,0,2,1),loss=c(0,3,1,0,1,0))
+def_successWL<-mutate(def_successWL,"win_percentage"= round(((win)/(win+loss) * 100),2)) #add in percentages
+def_successWL<- def_successWL %>% arrange(desc(win)) #Sort the data
+def_successWL #print table
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.align='center'}
+#Bargraph
+ggplot(battles_defsuccess,aes(King,Freq,fill=Outcome))+
+  geom_bar(stat='identity',col='black')+
+  ggtitle('Defender King Success')+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+
+  scale_fill_manual(values=c("firebrick","deepskyblue"))
+```
+
+
+* Robb Stark had the most wins as a defender king with 13, and only 1 loss.
+* Joffrey/Tommen fared well when he was attacked - 9 wins and 3 losses.
+* Balon/Euron went undefeated at 4-0 (again!?).
+* Stannis Baratheon had 2 wins and 1 loss as as defender.
+* Renly Baratheon won 1 and lost none
+* Mance Rayder never defended
+
+## Overall Outcomes per King
+We've now seen how each king has done as both the agressor and the defender. Let's add the data together and take a look at how each king performed overall.
+
+```{r,echo=FALSE, message = FALSE, warning= FALSE}
+#Setting up the data
+king_overall<-rbind(battles_attackersuccess,battles_defsuccess) #Merge attacker and defender
+king_overall<- king_overall %>%group_by(Outcome) #fix up
+king_overall<- king_overall %>% arrange(Outcome) #arrange
+king_overall$King<-factor(king_overall$King,levels=king_overall$King[order(-king_overall$Freq)]) #order
+```
+
+```{r,echo=FALSE, message = FALSE, warning= FALSE,fig.align='center'}
+king_overallWL<-data.frame(King=unique(king_overall$King),win=c(11,22,21,4,0,1),loss=c(0,4,3,2,1,0)) #Manually enter overall record 
+king_overallWL<-king_overallWL %>% arrange(desc(win)) #arrange 
+king_overallWL<-mutate(king_overallWL,"win_percentage"= round(((win)/(win+loss) * 100),2)) #add win percentage
+king_overallWL #print table
+```
+
+```{r,echo=FALSE, message = FALSE, warning= FALSE,fig.align='center'}
+#Barplot
+ggplot(king_overall,aes(King,Freq,fill=Outcome))+
+  geom_bar(stat='identity')+
+  ggtitle('Overall King Success')+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+
+  scale_fill_manual(values=c("firebrick","deepskyblue"))
+```
+
+
+* Joffrey/Tommen had the most wins, 22, and only 4 losses. 
+* Robb Stark followed a very similar trend with 21 wins and 3 losses. 
+* Balon/Euron have won every single one of his battles, but have faught far less than the Baratheons and the Starks, 11-0. 
+* Stannis went 4-2
+* Renly 1-0
+* Mance 0-1.
+
+From this analysis we have seen which kings were successful and which were not. Balon/Euron went undefeated, but Joffrey/Tommen and Robb have won many more battles. Have the Greyjoys fought enough battles to prove they are unbeatable? 
+
+Following this, we will see how other factors such as army size, location, battle type, and year effect the outcome of the battles.
+
+# Does Size Really Matter?
+
+## The King's Armies
+Let's quickly revisit the overall success of each king from the last section.
+```{r,echo=FALSE}
+print(king_overallWL)
+```
+To recap; we've seen that Joffrey/Tommen, Robb, and Balon/Euron were the most successful.
+Let's check out the size of each of these king's armies and see if their success is correlated to how big their teams were.
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+#setting up the data
+size_attacker<-select(battles,attacker_king,attacker_size,attacker_outcome)
+size_def<-select(battles,defender_king,defender_size,defender_outcome)
+names(size_attacker)[1:3]<-c('King','Size','Outcome')
+names(size_def)[1:3]<-c('King','Size','Outcome')
+size_total<-rbind(size_attacker,size_def)
+size_total<-filter(size_total,King!="",Outcome!="")
+#Without Outlier
+size_total_x<-filter(size_total,Size < 100000)
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+#Graphs Code
+sizeplot<-ggplot(size_total,aes(King,Size,fill=King))+
+  geom_boxplot()+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+
+  stat_summary(fun.y=mean, geom="point", shape=5, size=3)+
+  xlab("King") + ylab("Army Size")+
+  ggtitle("Kings and their Army Size")
+
+#Without Outlier  
+sizeplot_x<-ggplot(size_total_x,aes(King,Size,fill=King))+
+  geom_boxplot()+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+
+  stat_summary(fun.y=mean, geom="point", shape=5, size=3)+
+  xlab("King") + ylab("Army Size")+
+  ggtitle("Kings and their Army Size(removed influential point)")
+
+```
+
+
+```{r,warning=FALSE,message=FALSE,fig.align='center'}
+# *NOTE: The Diamonds represent the average Army Size
+print(sizeplot)
+```
+
+Right away we can see a major outlier in the data. Mance Rayder fought one battle with a 100,000 man army. Let's explore this battle further.
+
+```{r,echo=FALSE}
+formattable(head(battles%>%arrange(desc(attacker_size)) %>% select(-(defender_outcome)),1))
+```
+
+
+In the year 300, Mance Rayder and his 100,000 man army came from beyond the wall and attacked the Knight's watch, which was being commanded by Stannis and his 1,240-man army. Although Stannis was vastly outnumbered, he was able to fend off Mance's siege and defeat the wildlings at the Battle of Castle Black.
+
+However, this is clearly a major influential point that throws off our data.
+```{r,echo=FALSE}
+summary(size_total$Size)
+```
+
+Not only is this number much larger than the rest of the data, it's the only of its kind. Let's look again at the graph after we remove that one battle.
+
+```{r,warning=FALSE,message=FALSE,fig.align='center'}
+# *NOTE: The Diamonds represent the average Army Size
+# *NOTE: This boxplot removes the 100,000 influential point
+print(sizeplot_x)
+```
+
+There doesn't seem to be any consistent trends in the army sizes used by each king. What we do see is:
+
+* The undefeated Greyjoys have consistently faught with, by far, the smallest armies.
+* Joffrey/Tommen, two of most successful kings, had mid-sized to large armies when they faught their battles.
+* Robb Stark, another successful leader, normally had mid-sized to smaller armies, with the exception of the time he had 18,000 fighters.
+* Stannis, a 4-2, had decently sized armies when he faught - bigger armies than Robb Stark. His outlier lands when he had 21,000 fighters.
+* Mance lost with the biggest army in the show's history - 100,000 people deep. It was his one and only battle.
+* Renly had an extremely large army for his one fight, which was a win.
+
+## Does Army Size Effect Outcome?
+It's starting to seem like the more successful kings are the ones that fight with smaller armies, and vise versa. 
+Let's take a quick look at the outcomes of the top five battles with the biggest armies
+```{r,echo=FALSE}
+largestfights<- size_total %>% filter(Size!="NA") %>% arrange(desc(Size))
+smallestfights<- size_total %>% filter(Size!="NA") %>% arrange(Size)
+```
+
+```{r,fig.align='center'}
+head(largestfights,5)
+```
+The top four of five biggest armies all lost their battles.
+Let's take a look at the outcomes of the five smallest armies.
+```{r}
+head(smallestfights,5)
+```
+Wow! The five smallest armies all came out victorious! 
+
+Let's look further into this.
+
+Like we mentioned before, Mance's battle is a major outlier. I will print one graph with it (top), and one graph with out it (bottom).
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+size<- battles %>% select(attacker_size, defender_size, attacker_outcome,attacker_king)
+size<- size %>% filter(attacker_outcome!="",attacker_king!="")
+
+
+attdef<-ggplot(data = size, aes(y = attacker_size, x = defender_size)) +
+  geom_smooth(method = "lm", se = F, fullrange = T, colour = "firebrick3", size = 1) +
+  geom_smooth(method = "loess", formula = y ~ x, se = T, colour = "darkseagreen1", size = 3) +
+  geom_point(aes(color=attacker_outcome),size=3) + 
+  theme(legend.title=element_blank()) +
+  ggtitle("Attacker Size vs Defender Size") +
+  xlab("Defender Size") + ylab("Attacker Size")
+
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+size_x<-filter(size,attacker_size<100000)
+
+
+attdef_x<-ggplot(data = size_x, aes(y = attacker_size, x = defender_size)) +
+  geom_smooth(method = "lm", se = F, fullrange = T, colour = "firebrick3", size = 1) +
+  geom_smooth(method = "loess", formula = y ~ x, se = T, colour = "darkseagreen1", size = 3) +
+  geom_point(aes(color=attacker_outcome),size=3) + 
+  theme(legend.title=element_blank()) +
+  ggtitle("Attacker Size vs Defender Size (outlier removed)") +
+  xlab("Defender Size") + ylab("Attacker Size")
+
+```
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE,fig.align='center'}
+grid.arrange(attdef,attdef_x,nrow=2,ncol=1)
+```
+
+__(Top):__ You would assume that the larger the army, the better the chance of winning the battle, right? Maybe not. Our graph shows every single battle above both our regression line and loess line as loss, and every one below it a win. Our regression line is downward sloping and our loess line shows a negative dip. 
+
+__(Bottom):__ Although the general trend of our data changes when removing the influential point, it doesn't change the fact that the lost battles are still the ones that had the larger armies.
+
+The major problems with these graphs are that they remove the whole role of data if only one column has an N/A value. A box plot for win/loss should help see past this problem.
+
+First, we will look at the boxplots with the 100,000 influential point (left), and then without it (right).
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+#Setting up the plot - outlier still in
+sizeplot_wl<-ggplot(size_total,aes(Outcome,Size,fill=Outcome))+
+  geom_boxplot()+
+  theme(axis.text.x=element_text(angle=0,hjust=1))+
+  theme(legend.position="none") +
+  stat_summary(fun.y=mean, geom="point", shape=5, size=3)+
+  xlab("Outcome") + ylab("Army Size")+
+  ggtitle("Outcome Via Army Size")
+```
+
+
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+#Setting up the plot, outlier removed
+sizeplot_wl_x<-ggplot(size_total_x,aes(Outcome,Size,fill=Outcome))+
+  geom_boxplot()+
+  theme(axis.text.x=element_text(angle=45,hjust=1))+
+  theme(legend.position="none") +
+  stat_summary(fun.y=mean, geom="point", shape=5, size=3)+
+  xlab("Outcome") + ylab("Army Size")+
+  ggtitle("Influential Point Removed")
+```
+
+```{r,warning=FALSE,message=FALSE,fig.align='center'}
+# *NOTE: The Diamonds represent the average Army Size
+```
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+grid.arrange(sizeplot_wl,sizeplot_wl_x,nrow=1,ncol=2)
+```
+
+
+It has become pretty transparent that smaller armies normally prevail over bigger ones. Is it because it is easier to control and direct a smaller army? Do smaller armies have an underdog mentality that helps push them to the top?
+
+#To Do:
+  * Time Analysis - Did the year effect the battle's outcome?
+  * Battle Type - Was one type of battle (ambush, pitched battle, etc) more effective than the others?
+  * Location - Which locations proved to be better for battle?
+  * Decision Tree - Tying it all together. Making a decision tree to predict future outcomes.
+  

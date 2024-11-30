@@ -1,0 +1,60 @@
+---
+title: "West Malaysia Languages and Extinction level"
+output: 
+    html_document: 
+        fig_height: 7
+        fig_width: 10
+---
+
+
+#### Exploration of languages and extinction level in West Malaysia
+
+We load the data from [Kaggle dataset-Extinct Languages](https://www.kaggle.com/the-guardian/extinct-languages), and 
+extract data that belongs to Malaysia
+
+```{r}
+library(knitr)
+
+ext.lang <- read.csv("../input/data.csv", stringsAsFactors = FALSE)
+my<-which(ext.lang$Countries=="Malaysia")
+ext.my<-ext.lang[my,]
+ext.my.west<-ext.my[ext.my$Longitude<105,]
+kable(ext.my[,c(2,6,8,11:14)])
+```
+
+Plot the information, focus on West Malaysia only, using terrain map to see if there's any relationship to terrain information visually,
+
+```{r, message=FALSE, eval=F,include=T}
+library(ggmap)
+#Using google map
+map<-get_googlemap(c(102, 4), zoom=7, maptype="terrain")
+ggmap(map) + geom_point(aes(x=Longitude, y=Latitude, color=Degree.of.endangerment, size=Number.of.speakers), data=ext.my.west)
+```
+![](https://raw.githubusercontent.com/xhoong/statslab/gh-pages/figure/MYmap.png)
+
+The biggest bubble is near the mountain terrain, showing from table below with language that are **Severely endangered** (color as purple in map above), with 15000 speakers for **Semai** as of 2007 (Bradley) 
+
+
+```{r, message=FALSE, eval=F, include=T}
+a<-""
+for(i in 1:(dim(ext.my.west)[1])) {
+  l <-c(ext.my.west$Longitude[i], ext.my.west$Latitude[i])
+  a[i]<-revgeocode(c(lon = l[1], lat = l[2]), output = "address", messaging = FALSE)
+}
+ext.my.west$State<-sapply(strsplit(a, ','), function(x) { gsub(".*\\s+([a-zA-Z]+?)$", "\\1", x[length(x)-1])} )
+
+```
+Using reverse geocode to get the state and enrich the data.
+
+```{r, eval=T, include=F}
+ext.my.west$State<-c("Pahang" ,"Johor" ,"Perak" ,"Pahang" ,"Pahang" ,"Kedah" ,"Melaka" ,"Perak" ,"Pahang" ,"Johor" ,"Pahang" ,"Selangor" ,"Pahang" ,"Pahang" ,"Sembilan" ,"Johor" ,"Kelantan" ,"Kedah" ,"Kedah" ,"Kelantan")
+```
+```{r}
+kable(ext.my.west[ext.my.west$Degree.of.endangerment=="Severely endangered",c(2,11, 12:14, 16)])
+```
+
+##### Summary
+
+Initial exploration shows that language that spoken by people that is situated in mountain terrain have more speakers in 
+**Severely endangered** categry versus those in the flat land. 
+

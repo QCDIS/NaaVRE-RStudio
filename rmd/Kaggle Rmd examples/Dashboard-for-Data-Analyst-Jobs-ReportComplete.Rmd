@@ -1,0 +1,275 @@
+---
+title: "Report For Data Analyst Postings on Glassdoor 2019"
+author: "Selvyn Yovany Martinez Barahona"
+date: "5/25/2021"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+
+```{R,echo= FALSE, include= FALSE}
+getwd()
+```
+
+```{R, warning = FALSE, header = FALSE, message = FALSE, echo=FALSE}
+data <- read.csv("2019_data_analyst_job.csv")  
+library (lubridate)
+library(ggplot2)
+library(ggrepel)
+library(randomcoloR)
+library(tidyverse)
+library(pander)
+library(reshape2)
+library(dplyr)
+```
+
+```{R, echo= FALSE, include= FALSE}
+job_hired_apply <- data %>% 
+     group_by(job_title) %>% 
+      summarize(job_hired = (sum(hired == "TRUE", na.rm=TRUE)/7002*100),
+                  job_apply =(sum(easy_apply == "TRUE", na.rm=TRUE)/5340*100))            #Summarizing data analyst titles by percent hired and percent easy apply
+
+job_hired_apply
+```
+
+```{R,echo= FALSE, include= FALSE}
+pander_job_hired_apply <- data %>% 
+     group_by(job_title) %>% 
+      summarize(job_hired = paste0(round(sum(hired == "TRUE", na.rm=TRUE)/7002*100, 2), "%"), 
+                  job_apply = paste0(round(sum(easy_apply == "TRUE", na.rm=TRUE)/5340*100,2), "%")) #In order to add the percentage sign to the subsequent table, a different subset needed to be created. Adding a percentage sign converts numerical values to string values which makes working with the subset difficult. 
+
+pander_job_hired_apply
+```
+## Introduction
+
+Data analysts are in high demand across all kinds of industries. More and more companies, all around the world, are becoming increasingly data centered. And with that shift has come a surge in demand for data analysts to help put this data to work. Because there are not enough people to fill these open jobs, many of the organizations trying to recruit data analysts are having a difficult time filling the talent gap. 
+
+In this report, I analyze and display key performance indicators that provide insight into Glassdoor's performance in 2019. The data source was from Picklesueat's repository on Github and Kaggle. Picklesueat collected data about job applications for opportunities posted on Glassdoor. This data contains information about the jobs for which people applied, if they submitted their application for the job opening using the agency's easy-apply process, and whether the applicant was ultimately hired.
+
+Following are some questions I'll be answering:
+
+1. For each job title, what percentage of the total applications submitted did they receive?
+2. What was the total number of applications received per month?
+3. What was the trend in the total number of applications received per month?
+
+## Overview of Data Analyst Positions
+
+```{R,echo= FALSE}
+colnames(pander_job_hired_apply) <- c("Data Analyst Title",
+                               "Percent Hired", 
+                               "Percent Easy-Apply")
+
+panderOptions('table.split.table', Inf) 
+panderOptions('round',2)
+
+pander(pander_job_hired_apply, 
+       caption = "Percent of Applicants Who Got Hired and Used Easy-Apply By Data Analyst Title") 
+``` 
+
+According to Table 1, you can see that the percentage of digital marketing applications resulting in a hire was 25.99% of total applications selected for hire. Also, the percentage of manufacturing applications submitted using easy apply was 12.81% of total applications submitted using the process. According to the data, it also seems that digital marketing applications resulted in a hire about three times more often than loan data analyst applications.
+
+```{R,echo= FALSE, include= FALSE}
+palette <- distinctColorPalette(28) 
+#Colors are randomized for the sake of filling all values in the subsequent chart
+```
+
+```{R,echo= FALSE, include= FALSE}
+job_hired_apply <- job_hired_apply %>%
+  mutate(csum = rev(cumsum(rev(job_hired))), 
+           pos_hired = job_hired/2 + lead(csum, 1),
+           pos_hired = if_else(is.na(pos_hired), job_hired/2, pos_hired))                           #The positions of the labels needed to be calculated so that the labels do not overlap when creating the pie chart
+```
+
+```{R,echo= FALSE, include= FALSE}
+job_hired_apply <- job_hired_apply %>%
+  mutate(id=LETTERS[row_number()])  
+#A new column needed to be created in order to assign specific characters to our values. There was too much overlap in the values
+```
+
+```{R,echo= FALSE, include= FALSE}
+job_hired_apply$id <- 1:28  
+#Due to there only being 26 letters in the English Alphabet, numerical values needed to be assigned to then assign additional characters
+```
+
+```{R,echo= FALSE, include= FALSE}
+job_hired_apply$id[c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28)] <- c("A", "B", "C","D","E", "F","G", "H","I", "J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X", "Y","Z","Za","Zb")  #Values assigned
+```
+
+## Visualization of Data Analyst Applications Represented by the Most Hires
+
+```{R, fig.width=80, fig.height=78,echo= FALSE, warning = FALSE}
+job_plot <- ggplot(job_hired_apply, aes(x="", y= job_hired, fill= paste0(id, ': ' ,job_title, '- ',  round(job_hired,2),'%'))) +
+  geom_bar(width = 1, stat = "identity") +
+  geom_label_repel(aes(y=pos_hired,label= id),size = 18, nudge_x = 1, show.legend = FALSE) +
+  coord_polar("y", start=0)+
+  theme_classic()+
+  theme_void ()+
+  theme(legend.position = "top",
+        legend.title = element_text(size = 51),
+        legend.text = element_text(size = 47))+
+  theme(plot.title = element_text(size = 70, hjust=0.5),
+        plot.subtitle = element_text(size = 68, face = "italic", hjust= 0.5),
+        plot.caption = element_text(color = "red", size = 68, hjust=0)) +
+  scale_fill_manual(values =palette)+
+  theme(axis.line = element_blank())+
+  theme(axis.text = element_blank())+
+  theme(axis.ticks = element_blank())+
+  labs(x=NULL, y=NULL, fill= "Data Analyst Title") +
+  labs (title="Figure 1: Percent Hired by Data Analyst Title")+
+  labs (subtitle="Data from 2019")+
+  labs (caption= "Source: Glassdoor Dataset") 
+  
+job_plot
+```
+
+From Figure 1, you can see that digital marketing applications represents the largest portion of total hires at 26.0% while applications for data quality analyst represents the second largest portion at 18.4%. All other applications represent less than 12% of total hires. 
+
+```{R,echo= FALSE, include= FALSE}
+job_hired_apply <- job_hired_apply %>% 
+  mutate(csum1 = rev(cumsum(rev(job_apply))), 
+         pos_apply = job_apply/2 + lead(csum1, 1),
+          pos_apply = if_else(is.na(pos_apply), job_apply/2, pos_apply))  
+#Label positions for percent easy apply needed to be calculated
+```
+
+## Visualization of Data Analyst Applications Represented by the Most Easy-Apply Submissions
+
+```{R, fig.width=80, fig.height=78,echo= FALSE, warning = FALSE}
+job_apply_plot <- ggplot(job_hired_apply, aes(x="", y= job_apply, fill= paste0(id, ': ' ,job_title, '- ',  round(job_apply,2),'%'))) +
+  geom_bar(width = 1, stat = "identity")+ 
+  geom_label_repel(aes(y=pos_apply,label= id),size = 18, nudge_x = 1, show.legend = FALSE) +
+  coord_polar("y", start=0)+
+  theme_classic()+
+  theme_void ()+
+  theme(legend.position = "top",
+       legend.title = element_text(size = 51),
+       legend.text = element_text(size = 47))+
+  theme(plot.title = element_text(size = 70, hjust=0.5),
+        plot.subtitle = element_text(size = 68, face = "italic",  hjust = 0.5),
+        plot.caption = element_text(color = "red", size = 68, hjust=0)) +
+  scale_fill_manual(values= palette)+
+  theme(axis.line = element_blank())+
+  theme(axis.text = element_blank())+
+  theme(axis.ticks = element_blank())+
+  labs(x=NULL, y=NULL, fill= "Data Analyst Title") +
+  labs (title="Figure 2: Percent Easy-Apply by Data Analyst Title")+
+  labs (subtitle="Data from 2019")+
+  labs (caption= "Source: Glassdoor Dataset")
+
+job_apply_plot
+```
+
+As you can see from Figure 2, data quality analyst applications make up the largest portion of all easy-apply submissions compared to all the other job titles at 54.7%. Data quality analyst is followed by manufacturing data analyst at 12.81% and technical data analyst at 12.75% respectively.
+
+```{R, echo= FALSE, include= FALSE}
+data <- data %>%
+  mutate(dates= as.Date(date, format = "%m/%d/%y"))
+#Dates needed to be formatted and labeled as dates
+```
+
+```{R, echo= FALSE, include= FALSE}
+data <- data %>%
+  mutate(months= month(dates, label= TRUE, abbr = FALSE))
+#Dates needed to be grouped and categorized based on month name
+```
+
+```{R, echo= FALSE, include= FALSE}
+date_applicants <- data %>% 
+  group_by(months) %>% 
+     summarize(applicants=length(hired))
+#Subset created for table calculations
+
+date_applicants
+```
+
+```{R, echo= FALSE, include=FALSE}
+date_applicants_pander <- data %>% 
+  group_by(months) %>% 
+     summarize(applicants=length(hired))
+
+date_applicants_pander <- date_applicants_pander %>%
+  bind_rows(summarize_all(., ~if(is.numeric(.)) sum(.) else "Total"))
+#Separate subset created for pander. Additionally, total needed to be added to the table which would distort the descriptive statistic process. 
+
+date_applicants_pander
+```
+
+## Overview of Total Number of Applications Received per Month in 2019
+
+```{R,echo= FALSE}
+colnames(date_applicants_pander) <- c("Month", 
+                                      "Applicants")
+pander(date_applicants_pander, 
+       caption = "Total Number of Applicants by Month") 
+``` 
+
+```{R,echo= FALSE, include= FALSE}
+date_applicants_summary <- data.frame(matrix("", ncol = 3, nrow = 2)) 
+rownames(date_applicants_summary) <- c('Month', 'Monthly_Applicants')
+colnames(date_applicants_summary) <- c('Min', 'Max', 'Average')
+#A Matrix needed to be created to insert the values that were needed. 
+```
+
+```{R,echo= FALSE, include= FALSE}
+date_applicants_summary$Min <- 1:2
+date_applicants_summary$Min[2] <- min(date_applicants$applicants)
+date_applicants_summary$Min [1] <- "February"
+date_applicants_summary$Max <- 1:2 
+date_applicants_summary$Max[2] <- max(date_applicants$applicants)
+date_applicants_summary$Max [1] <- "July"
+date_applicants_summary$Average <- 1:2
+date_applicants_summary$Average[2] <- round(mean(date_applicants$applicants))
+date_applicants_summary$Average[1] <- NA
+##Unfortunately the much better formula apply (data_applicants,2, min/max) could not return the correct months that were associated with the min and max. Went ahead and manually inserted these months to summarize the descriptions. 
+           
+date_applicants_summary
+```
+
+```{R, echo= FALSE}
+rownames(date_applicants_summary) <- c("Month", 
+                                      "Monthly Applicants")
+pander(date_applicants_summary, 
+       caption = "Summary of Total Number of Applicants by Month") 
+``` 
+
+From both Table 2 and Table 3, you can see that the least number of applications received was 2,312 in February, the greatest was 3,138 in July, and the average for 2019 was 2,716 per month.
+
+```{R, echo= FALSE, include= FALSE}
+month_abbr <- data %>%
+  mutate(months= month(dates, label= TRUE, abbr = TRUE))
+#months needed to be abbreviated for graph
+```
+
+```{R, echo= FALSE, include= FALSE}
+date_applicants_abbr <- month_abbr %>% 
+  group_by(months) %>% 
+     summarize(applicants=length(hired))
+#Subset created for visualization
+
+date_applicants_abbr
+```
+
+## Visualization of Changes in Applications Received Over 2019
+
+```{R,echo= FALSE, warning = FALSE}
+trend_apps_plot <- ggplot(date_applicants_abbr, aes(x=months, y=applicants, group=1)) +
+  geom_line(linetype = "solid", color= "blue")+
+  ylim(1000, 4000)+
+  geom_point(color= "blue")+
+  theme(plot.title = element_text(hjust=0.5, size=10),
+        plot.subtitle = element_text(size=8, face = "italic",hjust=0.5),
+        plot.caption = element_text(color = "red" ,hjust= 0)) +
+  labs(title="Figure 3: Total Data Analyst Applicants by Month", x= "Month", y= "Applicants")+
+  labs(subtitle="Data from 2019")+
+  labs(caption= "Source: Glassdoor Dataset")
+
+trend_apps_plot
+````
+
+According to Figure 3, it appears that, in general, applications received increased from February to July, then decreased from July to November. This implies that applications are sent on a seasonal basis and that applicants are more active during the Summer. Regardless, of these discrepancies though, applications do remain steady year-round. 
+
+## Conclusion 
+
+Overall, this report communicates important aspects of Glassdoor's recruitment experiences in 2019. The report uses job application data from 2019 to analyze and display key metrics, such as what percentage of applications were submitted for each job title, the total number of applications received per month, and the trend in the total number of applications received per month.This information will help discover patterns, trends, and insights that will lead to smart decisions in the future. The subsequent recommendations made from this data will help Glassdoor fill vacancies for data analytics jobs, enabling more businesses to hire talented data analytics professionals and become truly data-driven.

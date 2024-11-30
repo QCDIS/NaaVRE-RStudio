@@ -1,0 +1,536 @@
+---
+title: "TalkingData: R LightGBM Tutorial with Model Evaluation"
+author: "Pranav Pandya"
+output:
+  html_document:
+    number_sections: true
+    code_folding: show
+    toc: true
+    toc_depth: 6
+    fig_width: 10
+    highlight: tango
+    theme: cosmo
+    smart: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Introduction
+
+With over 1 billion smart mobile devices in active use every month, China is the largest mobile market in the world and therefore suffers from huge volumes of fradulent traffic. TalkingData, China’s largest independent big data service platform, covers over 70% of active mobile devices nationwide. They handle 3 billion clicks per day, of which 90% are potentially fraudulent. This is their 2nd competition with Kaggle. 
+
+For this competition, TalkingData has asked data science enthusiasts around the world to build an algorithm that predicts whether a user will download an app after clicking a mobile app ad. The dataset is quite huge i.e. ~8 GB and 200 million observations (train + test) and fits the definition of rare events data where 99.8% observations are negative and only 0.2% observations are positive. 
+
+I found this dataset quite interesting and unique because of rare events data/ highly unbalanced classes. In this report, it is s my endeavor to make use of Kaggle server to crunch large amount data in R. Main highlights of this reports are data pre-processing, feature engineering, data analysis, modelling, model evaluation and making predictions + submission. Intended audience for this tutorial can be beginners or Python users interested in R. 
+
+
+Motivation for this kernel is to explore possibilities in R language for data wrangling and testing the performance of lightGBM model using Kaggle IDE which provides excellent support for R, Python or Rmd scripts. 
+
+Please check the performance benchmarking section at the end for detailed analysis of model performance. 
+
+## Related work (scripts) for this dataset:
+
+- **R**:
+
+    - [LightGBM in R with 75 mln rows | LB: 0.9690](https://www.kaggle.com/pranav84/single-lightgbm-in-r-with-75-mln-rows-lb-0-9690?scriptVersionId=2989011)
+    - [Single Hist XGBoost Hitting 0.9684 on LB ¯\_(ツ)_/¯](https://www.kaggle.com/pranav84/single-xgboost-hist-hitting-0-9686-on-lb?scriptVersionId=2968554)
+
+- **Python**:
+
+    - [LightGBM (Fixing unbalanced data) LB: 0.9680](https://www.kaggle.com/pranav84/lightgbm-fixing-unbalanced-data-lb-0-9680)
+    - [XGBoost : Histogram Optimized Version](https://www.kaggle.com/pranav84/xgboost-histogram-optimized-version?scriptVersionId=2794247)
+
+
+# Data pre-processing and feature engineering
+
+## Sample size
+
+I have chosen last 60 million observations from complete training data out of which 5% observations are used as validation set.
+
+
+## Load libraries and process training data
+There are many ways to load libraries in R. I found pacman approach quite useful compared to others. Specifically, p_load function loads the library if package is already installed. If specified package is not installed then p_load function will install it and then load it. 
+
+```{r libraries, message=FALSE}
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(knitr, tidyverse, highcharter, data.table, lubridate, pROC, tictoc, DescTools, lightgbm)
+set.seed(84)               
+options(scipen = 9999, warn = -1, digits= 5)
+
+tic("Total processing time for feature engineering on training data --->")
+train <- fread("../input/train.csv", skip=124903890, nrows=60000000, 
+               col.names =c("ip", "app", "device", "os", "channel", "click_time", 
+                            "attributed_time", "is_attributed"), , 
+                showProgress = FALSE) %>%
+  select(-c(attributed_time)) %>%
+  mutate(wday = Weekday(click_time), hour = hour(click_time)) %>% 
+  select(-c(click_time)) %>%
+  add_count(ip, wday, hour) %>% rename("nip_day_h" = n) %>%
+  add_count(ip, hour, channel) %>% rename("nip_h_chan" = n) %>%
+  add_count(ip, hour, os) %>% rename("nip_h_osr" = n) %>%
+  add_count(ip, hour, app) %>% rename("nip_h_app" = n) %>%
+  add_count(ip, hour, device) %>% rename("nip_h_dev" = n) %>%
+  select(-c(ip))
+toc()
+invisible(gc())
+```
+### Chaining and piping in layman's term:
+Here is how to read complete pipeline in simple words for the code chunk above to process training data:
+
+1. Read last 60 million observations in training data
+2. drop/deselect attributed_time
+3. Extract weekday and hour as a new features from click_time
+4. drop/deselect click_time
+5. Add count features with various grouping with IP addresses
+6. Drop IP address column
+7. Store the resulting data to object named **train** which is assigned in the beginning with **<-** operator. 
+
+- **%>%** is called pipe operator and works exactly like `|` operator in unix. Pipes take the output from one function and feed it to the first argument of the next function. To further explain this, The R language allows symbols wrapped in `%` to be defined as functions and the `>` helps imply a chain.  
+
+- add_count() function in dplyr is useful for groupwise filtering. It adds a column "n" to a table based on the number of items within each existing group as shown in the code chunk above. 
+
+Let us follow the same procedure to prepare test data. Normal practice is to merge train and test set and then add features however reason for separate processing is to avoid hitting memory limit. 
+
+### Chain together and pipe test data
+```{r piping test data, message=FALSE}
+tic("Total processing time for feature engineering on test data --->")
+test  <- fread("../input/test.csv", showProgress = FALSE) 
+
+# extract click_id for submission file
+sub <- data.table(click_id = test$click_id, is_attributed = NA) 
+test$click_id <- NULL
+
+test <- test %>% 
+  mutate(wday = Weekday(click_time), hour = hour(click_time)) %>%
+  select(-c(click_time)) %>%
+  add_count(ip, wday, hour) %>% rename("nip_day_h" = n) %>%
+  add_count(ip, hour, channel) %>% rename("nip_h_chan" = n) %>%
+  add_count(ip, hour, os) %>% rename("nip_h_osr" = n) %>%
+  add_count(ip, hour, app) %>% rename("nip_h_app" = n) %>%
+  add_count(ip, hour, device) %>% rename("nip_h_dev" = n) %>%
+  select(-c(ip))
+toc()
+```
+
+# Data analysis
+
+Note that I have dropped IP address, attributed time and click time columns after utilizing frequency counts from IP addresses and extracting weekday and hour from click time.
+IP addresses seems to be dynamic or possibly fake so I decided to not to use for model training directly. 
+
+Nice discussion on issues with IP address here : https://www.kaggle.com/c/talkingdata-adtracking-fraud-detection/discussion/52374
+
+## Glimpse {.tabset .tabset-fade .tabset-pills} 
+### Training data
+```{r glimpse train}
+str(train)
+```
+
+### Test data
+```{r glimpse test}
+str(test)
+```
+
+## unique values by each feature in train data
+```{r }
+kable(as.data.frame(lapply(train, function(x)length(unique(x)))))
+```
+
+## unique values by each feature in test data
+```{r }
+kable(as.data.frame(lapply(test, function(x)length(unique(x)))))
+```
+
+## Categorical features
+
+### Visualizaing most frequents values in training data 
+
+```{r vizs}
+h1 <- train %>% group_by(app) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(15) %>% mutate(app = as.character(app)) %>%
+  hchart("bar", hcaes(x = app, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Apps")
+
+h2 <- train %>% group_by(os) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(15) %>% mutate(os = as.character(os)) %>%
+  hchart("bar", hcaes(x = os, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top OS")
+
+h3 <- train %>% group_by(channel) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(15) %>% mutate(channel = as.character(channel)) %>%
+  hchart("bar", hcaes(x = channel, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Channels")
+
+h4 <- train %>% group_by(device) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(15) %>% mutate(device = as.character(device)) %>%
+  hchart("bar", hcaes(x = device, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Devices")
+
+h5 <- train %>% group_by(hour) %>% summarise(count = n()) %>%
+  arrange(desc(count)) %>% head(15) %>% mutate(hour = as.character(hour)) %>%
+  hchart("bar", hcaes(x = hour, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Hours")
+
+hw_grid(h1, h2, h3, h4, h5, ncol = 5, rowheight = 600)
+```
+
+### Case when **App was downloaded** i.e is_attributed == 1
+
+Notice that, Device 0 contributes the second highest significantly after device 1 in terms of app downloaded for the subset of training data (last 40 million rows in complete dataset). Similar observations can also be seen in OS and App by comparing the plot above (is_attributed mixed) and the plot below (is_attributed == 1 i.e app was downloaded.)
+Use **hide button** on the left to collapse lengthy chunk of code while comparing. 
+```{r }
+h1 <- train %>% filter(is_attributed == 1) %>% group_by(app) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(20) %>% mutate(app = as.character(app)) %>%
+  hchart("bar", hcaes(x = app, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Apps")
+
+h2 <- train %>% filter(is_attributed == 1) %>% group_by(os) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(20) %>% mutate(os = as.character(os)) %>%
+  hchart("bar", hcaes(x = os, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top OS")
+
+h3 <- train %>% filter(is_attributed == 1) %>% group_by(channel) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(20) %>% mutate(channel = as.character(channel)) %>%
+  hchart("bar", hcaes(x = channel, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Channels")
+
+h4 <- train %>% filter(is_attributed == 1) %>% group_by(device) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>%  head(20) %>% mutate(device = as.character(device)) %>%
+  hchart("bar", hcaes(x = device, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Devices")
+
+h5 <- train %>% filter(is_attributed == 1) %>% group_by(hour) %>% summarise(count = n()) %>%
+  arrange(desc(count)) %>% head(20) %>% mutate(hour = as.character(hour)) %>%
+  hchart("bar", hcaes(x = hour, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Hours")
+  
+hw_grid(h1, h2, h3, h4, h5, ncol = 5, rowheight = 600)
+```
+
+### Situation in test data
+Interesting observation in test data is that, most of the 18,790,469 observations falls under the hours **4, 5, 9, 10, 13 and 14** only. This observation has been used to create new feature in other scripts and shows improvement in model accuracy.
+
+```{r }
+h1 <- test %>% group_by(app) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(15) %>% mutate(app = as.character(app)) %>%
+  hchart("bar", hcaes(x = app, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Apps")
+
+h2 <- test %>% group_by(os) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(15) %>% mutate(os = as.character(os)) %>%
+  hchart("bar", hcaes(x = os, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top OS")
+
+h3 <- test %>% group_by(channel) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(15) %>% mutate(channel = as.character(channel)) %>%
+  hchart("bar", hcaes(x = channel, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Channels")
+
+h4 <- test %>% group_by(device) %>% summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(15) %>% mutate(device = as.character(device)) %>%
+  hchart("bar", hcaes(x = device, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Devices")
+
+h5 <- test %>% group_by(hour) %>% summarise(count = n()) %>%
+  arrange(desc(count)) %>% head(15) %>% mutate(hour = as.character(hour)) %>%
+  hchart("bar", hcaes(x = hour, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Hours")
+
+h6 <- train %>% group_by(wday) %>% summarise(count = n()) %>%
+  arrange(desc(count)) %>% mutate(wday = as.character(wday)) %>%
+  hchart("bar", hcaes(x = wday, y = count, color =-count)) %>%
+  hc_add_theme(hc_theme_ffx()) %>% hc_title(text = "Top Weekdays")
+
+hw_grid(h1, h2, h3, h4, h5, ncol = 5, rowheight = 600)
+rm(h1, h2, h3, h4, h5)
+invisible(gc())
+```
+
+# Modelling (LightGBM)
+To evaluate model performance before making prediction, let us create validation set (5% of training data) on which we can measure the model performance and can make educated guess on generalizing it on unseen (test) data.
+
+There are many ways to create validation data. I have chosen time based split for this example. From total observations, I am taking first 95% rows as training and last 5% as validation data. I have also implemented split by shuffling rows in my other scripts and shows improvement in accuracy compared to time based split. Good thing about LightGBM model is that, in both languages (R and Python) argument names are almost same.
+
+## Dealing with rare events data
+
+The complete dataset has 99.8% negative samples and 0.2% positive samples which fits the definition of highly imbalanced/ rare events data. This indeed needs special treatment compared to normal datasets. Let us calculate the sum of positive and negative classes in our reduced training dataset.
+
+
+```{r classes}
+#time based split
+tr_index <- nrow(train)
+dtrain <- train %>% head(0.95 * tr_index) # 95% data for training
+valid <- train %>% tail(0.05 * tr_index) # 5% data for validation
+rm(train)
+cat("train size : ", dim(dtrain), " | valid size : ", dim(valid), " | test  size : ", dim(test))
+
+kable(table(dtrain$is_attributed))
+```
+
+### What is the mechanism of using param 'scale_pos_weight'?
+
+- LightGBM as well as XGBoost algorithm (R and Python both) has **scale_pos_weight** argument which controls the weights of the positive obeservations which is very useful for unbalanced classes. 
+- According to LightGBM documentation, default value for scale_pos_weight is 1.0 and it represents weight of positive class in binary classification task. There are different ways to calculate weight for positive class. I have taken reference from Github issues page of LightGBM for calculation.
+
+
+From the table of unbalanced classes after splitting the data and from the reduced training data, we can see confirm following information:
+
+    Number of positive: 148371, number of negative: 59851629 
+    Number of data: 60000000, number of used features: 11
+
+With this information, we can calculate `scale_pos_weight` parameter used in LightGBM specifically to deal with unbalanced dataset with following formula :
+
+    scale_pos_weight = 100 - ( [**number of positive samples** / **total samples** ] * 100 )
+    scale_pos_weight = 100 - ( [ 143540 / 60000000 ] * 100 ) 
+    scale_pos_weight = 99.76
+
+
+### What to do with categorical data?
+
+LightGBM algorithm provides special support for categorical features. We can simply use categorical_feature parameter to specify the categorical features. 
+
+LightGBM offers good accuracy when using native categorical features instead of one-hot coding. As per the [official documentation dated 22nd March 2018](https://media.readthedocs.org/pdf/lightgbm/latest/lightgbm.pdf), LightGBM can find the optimal split of categorical features. Such an optimal split can provide the much better accuracy than one-hot coding solution.
+
+## Preapre data for modeling
+```{r data for model}
+
+categorical_features = c("app", "device", "os", "channel", "wday", "hour")
+
+dtrain = lgb.Dataset(data = as.matrix(dtrain[, colnames(dtrain) != "is_attributed"]), 
+                     label = dtrain$is_attributed, categorical_feature = categorical_features)
+dvalid = lgb.Dataset(data = as.matrix(valid[, colnames(valid) != "is_attributed"]), 
+                     label = valid$is_attributed, categorical_feature = categorical_features)
+
+invisible(gc())
+```
+
+## Parameters tuning
+```{r params}
+# Ref.: https://github.com/Microsoft/LightGBM/issues/695
+params = list(objective = "binary", 
+              metric = "auc", 
+              learning_rate= 0.1, 
+              num_leaves= 7,
+              max_depth= 3,
+              min_child_samples= 100,
+              max_bin= 100, # RAM dependent as per LightGBM documentation
+              subsample= 0.7,
+              subsample_freq= 1,
+              colsample_bytree= 0.7,
+              min_child_weight= 0,
+              min_split_gain= 0,
+              scale_pos_weight=99.76) # calculated for this dataset
+```
+
+```{r run model}
+tic("Total time for model training --->")
+model <- lgb.train(params, dtrain, valids = list(validation = dvalid), nthread = 4,
+                   nrounds = 1000, verbose= 1, early_stopping_rounds = 50, eval_freq = 50)
+
+rm(dtrain, dvalid)
+invisible(gc())
+toc()
+cat("Validation AUC @ best iter: ", 
+    max(unlist(model$record_evals[["validation"]][["auc"]][["eval"]])))
+```
+
+# Model evaluation
+
+## Feature importance by gain
+```{r fi by gain }
+# get feature importance
+fi = lgb.importance(model, percentage = TRUE)
+
+highchart() %>% 
+    hc_title(text = "Feature importance by Gain (important for generating a prediction)") %>%
+    hc_xAxis(categories = fi$Feature) %>%
+    hc_add_series(name = "Gain", data = fi, type = "bar", hcaes(x = Feature, y = Gain)) %>%
+    hc_add_theme(hc_theme_ffx())
+```
+
+## Feature importance (detailed)
+```{r fi all }
+highchart() %>%
+    hc_title(text = "Feature importance by Cover, Gain and Frequency") %>%
+    hc_xAxis(categories = fi$Feature) %>%
+    hc_add_series(name = "Cover", data = fi, type = "bar", hcaes(x = Feature, y = Cover)) %>%
+    hc_add_series(name = "Gain", data = fi, type = "bar", hcaes(x = Feature, y= Gain)) %>%
+    hc_add_series(name = "Frequency", data = fi, type = "bar", hcaes(x = Feature, y = Frequency)) %>%
+    hc_add_theme(hc_theme_538())      
+kable(fi)
+```
+
+
+## Understanding importance of each measure
+
+### Gain
+
+The **Gain** measure implies the relative contribution of the corresponding feature to the model calculated by taking contribution of each feature for each tree in the model. A higher value of this metric when compared to another feature implies it is more important for generating a prediction.
+
+Gain is also the most relevant attribute to interpret the relative importance of each feature. Based on feature importance matrix, we can choose to eliminate feature with lowest (near zero) gain and try and test new features in order to improve model performance. 
+
+```{r }
+fi %>% select(Feature, Gain) %>% mutate(Gain = sprintf("%0.4f", Gain)) %>% kable()
+```
+
+### Cover
+The **Cover** metric measures the relative quantity of observations concerned by a feature.
+
+```{r }
+fi %>% select(Feature, Cover) %>% mutate(Cover = sprintf("%0.3f", Cover)) %>% arrange(desc(Cover)) %>% kable()
+```
+
+### Frequency
+The **Frequency** measure is the percentage representing the relative number of times a particular feature occurs in the trees of the model. In simple words, it tells us how often the feature is used in the model.
+
+```{r }
+fi %>% select(Feature, Frequency) %>% 
+    mutate(Frequency = sprintf("%0.3f", Frequency)) %>% 
+    arrange(desc(Frequency)) %>% 
+    kable()
+
+```
+
+
+## ROC on validation set
+
+An ROC curve demonstrates several things for 2-class classification algorithms:
+
+- It shows the tradeoff between sensitivity and specificity (any increase in sensitivity will be accompanied by a decrease in specificity).
+- The closer the curve follows the left-hand border and then the top border of the ROC space, the more accurate the test.
+- The closer the curve comes to the 45-degree diagonal of the ROC space, the less accurate the test.
+
+**Note** : To avoid normal than usual computation time to plot ROC on full validation data, I'm reducing original validation data set to first 50,000 observations. ROC shown in the plot and AUC shown in the summary is for illustration purpose only.
+
+```{r, ROC, fig.width= 5}
+valid <- head(valid, 50000)
+val_preds = predict(model, data = as.matrix(valid[, colnames(valid) != "is_attributed"]), n = model$best_iter)
+
+#plot ROC
+roc(valid$is_attributed, val_preds, plot = TRUE, col = "steelblue", lwd = 3, 
+	levels=base::levels(as.factor(valid$is_attributed)), grid=TRUE)
+invisible(gc())
+```
+
+# Understanding individual prediction based on importance values
+For the model interpretation, let us extract data for the first observation in validation dataset and compare it with actual and predicted values based on feature importance to find out the reason behind having that specific predicted value. (Important thing to notice is the value of is_attributed in actual dataset and predicted value). 
+
+## Select random Observation in validation set
+```{r }
+kable(valid[1, ]) #let's choose the first observation
+```
+
+## Compare with predicted value
+```{r }
+cat(paste("predicted value from model: ", val_preds[[1]]))
+```
+
+## Reasoning
+lgb.interprete function computes feature contribution components of rawscore prediction. We will use it with plot.interpretation argument for visual representation.
+
+```{r fig.height= 5 }
+#extract interpretation for 1st observation in validation data
+tree_interpretation <- lgb.interprete(model, data = as.matrix(valid[, colnames(valid)]), 1)
+lgb.plot.interpretation(tree_interpretation[[1]])
+```
+In the chart above, X axis refers to contribution value (positive/ negative) and Y axis refers to name of the feature. 
+We can see the features with their contribution (positive/ negative) from the plot and the table below to get an idea behind why our model predicted that specific value for chosen observation in validation data set. In the table below, features and their contribution for prediction is arranged in descending order.
+This also explains the importance of feature engineering. Carefully crafted feature often leads to better accuracy. 
+
+```{r }
+as.data.frame(tree_interpretation) %>% arrange(desc(Contribution)) %>% kable()
+rm(valid, valid_preds)
+invisible(gc())
+```
+
+# Predictions
+```{r preds }
+preds = predict(model, data = as.matrix(test[, colnames(test)], n = model$best_iter))
+preds = as.data.frame(preds)
+sub$is_attributed = preds
+fwrite(sub, "sub_lightgbm_R_60mil.csv")
+```
+
+# Final thoughts
+
+- Installing lightGBM on Windows system in R (>= 3.4.0) is much complicated. I found suggestions mentinoed [here](https://github.com/Microsoft/LightGBM/issues/912) much helpful.
+- The training data for this tutorial is 60 million out of 184 million observations in full data set. Adding more data will certainly improve the model accuracy. Checkout my R script (link in the beginning of the report) which makes use of 75 million observations shows improvement in accuracy.
+- Having tested LightGBM in Python and R on Kaggle server for similar size of training data, I think modelling time in R LightGBM is much faster. Checkout log of one of my kernel [here](https://www.kaggle.com/pranav84/lightgbm-fixing-unbalanced-data) which uses LightGBM in Python.
+- There is an excellent library namely LIME for model interpretation (both in Python and R) which I intended to use for model evaluation part however lightGBM is not on supported list of models at the moment. 
+
+And lastly, thanks to fellow Kagglers for sharing innovating modelling approaches, feature engineering techniques, helpful discussion topics and excellent EDAs which has inspired me to create one. 
+
+# References
+
+- https://github.com/Microsoft/LightGBM/issues/912
+- https://github.com/Microsoft/LightGBM/tree/master/R-package
+- https://github.com/Microsoft/LightGBM/issues/695
+- http://gim.unmc.edu/dxtests/roc2.htm
+- https://www.analyticsvidhya.com/blog/2017/03/imbalanced-classification-problem/
+
+--- 
+
+
+# Post Submission analysis
+
+```{r sub analysis, echo=FALSE, message=FALSE, results='asis'}
+
+table <- " 
+
+## **Version wise Performance Benchmarking**:
+
+|                         	| **version 8** | **version 12**| **R script**	    | Notes  				|
+|---------------------------|:-------------:|:-------------:|------------------:|----------------------:|
+| Public LB score:			| 0.9683		| 0.9682		| **0.9687**		| -      				| 
+| Validation AUC          	| **0.9879**	| 0.9836		| 0.9843			| -      				|
+| Diff					  	| 0.0196		| **0.0154**    | 0.0156			| -      				|  
+| Training data           	| 38,000,000    | 57,000,000    | 71,250,000        | last observations     | 
+| Validation data         	| 2,000,000     | 3,000,000     | 3,750,000			| last observations     | 
+| Num of features         	| 11            | 11 			| 10				| freq count features   | 
+| Iterations              	| 500           | 600			| 500				| -     				| 
+| Processing time (train) 	| 1000 secs     | 1605 secs		| 1308 secs			| -     				| 
+| Processing time (test)  	| 456  secs     | 496  secs		| 327  secs			| -     				| 
+| Processing time (model) 	| 776  secs     | 1598 secs		| 1421 secs			| -     				| 
+| Total runtime           	| 43 mins       | 69 mins		| **58 mins**		| all scripts are public| 
+
+********
+**Runtime** is on Kaggle server with **4 threads** and **16 GB RAM**
+
+Link to R script as mentioned in 4th column [here](https://www.kaggle.com/pranav84/single-lightgbm-in-r-with-75-mln-rows-lb-0-9690?scriptVersionId=2989011/code)
+
+********
+
+## **Version wise gain by features** 
+
+| Name of the feature 	  	|**version 8**  |**version 12**	| **R script**	    |
+|---------------------------|:-------------:|:-------------:|------------------:|
+| app	          			| 0.6678		| 0.5933		| **0.7097**	 	| 
+| channel					| 0.2061		| 0.1585		| 0.1154			|
+| nip_day_h	      			| 0.0491		| 0.0388		| 0.0159			|
+| os	          			| 0.0229		| 0.0255		| 0.0200			|
+| nip_h_app	      			| 0.0223		| 0.0314		| 0.0234			|
+| nip_h_dev	      			| 0.0158		| 0.1266		| 0.0503			|
+| nip_h_osr	      			| 0.0070		| 0.0075		| 0.0069			|
+| device	      			| 0.0041		| 0.0080		| 0.0067			|
+| hour	          			| 0.0037		| 0.0063		| 0.0083			|
+| nip_h_chan      			| 0.0012		| 0.0040		| dropped			|
+| wday            			| 0.0000		| 0.0001		| dropped			|
+| nip_day_test_hh* 			| 0.0000		| 0.0001		| 0.0434			|
+
+
+********
+**nip_day_test_hh** is a new binning feature implemented in my R script (link above) based on most frequent and least frequent hours in test data.
+
+- most_freq_hours_in_test_data are 4,5,9,10,13 and 14
+- least_freq_hours_in_test_data are 6, 11 and 15 (based on top 15)
+
+If training data is observed within most frequent hours then value 1 is assigned, if it's observed within least frequent hours then value 2 is assigned. Value 3 for everything else. 
+Dropping two near zero gain features and adding this features has comparatively reduced gap between local cv and LB score as shown in the first table. 
+In the [recent version](https://www.kaggle.com/pranav84/single-lightgbm-in-r-with-75-mln-rows-lb-0-9690?scriptVersionId=2989011/code) of R script, the gap between is local validation score and public LB is now reduced to 0.0068.
+
+
+********
+
+"
+
+cat(table)
+```
