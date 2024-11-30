@@ -1,0 +1,127 @@
+---
+title: '`r paste("Dashboard: Crisis Seattle",Sys.Date())`'
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+```
+
+```{r echo=FALSE, include=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(scales)
+library(plotly)
+library(janitor)
+
+crisis_data <- read.table(file="../input/crisis-data.csv",sep = ",",head = TRUE)
+```
+
+```{r echo=FALSE, include=FALSE}
+# Select the important data
+data_dashboarded = c(
+    "Reported.Date", 
+    "Call.Type", 
+    "Initial.Call.Type", 
+    "Final.Call.Type",
+    "Precinct",
+    "Disposition"
+)
+
+crisis_data_subset <- crisis_data %>% select(data_dashboarded)
+
+# Format the Reported.Date
+crisis_data_subset$Reported.Date <- ymd(as.character(crisis_data_subset$Reported.Date))
+```
+
+```{r, echo=FALSE}
+#Compare Initial.Call.Type and Final.Call.Type vs Call.Type
+
+initial.final.call.type <- crisis_data_subset %>% 
+         group_by(Initial.Call.Type,Call.Type) %>% 
+         tally()
+
+d <- initial.final.call.type[initial.final.call.type$Initial.Call.Type!="",]
+
+d <- spread(d,Call.Type,n) 
+
+d[is.na(d)] = 0
+
+names_legend <- colnames(d)[2:ncol(d)]
+
+# ordem fct Initial.Call.Type by sumVar
+d <- d %>% ungroup() %>% mutate(sumVar = rowSums(.[names_legend])) 
+
+leg <- list(
+    font = list(
+        size = 9
+    )
+)
+
+f2 <- list(
+  family = "Old Standard TT, serif",
+  size = 9
+)
+
+a <- list(
+  title = "",
+  showticklabels = TRUE,
+  tickfont = f2,
+  size = 2
+)
+
+b <- list(
+  title = 'Count'
+  )
+
+m <- list(
+  l = 300,
+  r = -100,
+  b = 100,
+  t = 50,
+  pad = 4
+)
+
+plot_ly(d, x = ~`911`, y = ~fct_reorder(Initial.Call.Type, sumVar), 
+        type = "bar", name = names_legend[1],
+        width = 900, height = 600) %>%
+      add_trace(x = ~`ALARM CALL (NOT POLICE ALARM)`, name =  names_legend[2]) %>%
+      add_trace(x = ~`HISTORY CALL (RETRO)`, name =  names_legend[3]) %>%
+      add_trace(x = ~`IN PERSON COMPLAINT`, name =  names_legend[4]) %>%
+      add_trace(x = ~`ONVIEW`, name =  names_legend[5]) %>%
+      add_trace(x = ~`PROACTIVE (OFFICER INITIATED)`, name =  names_legend[6]) %>%
+      add_trace(x = ~`TELEPHONE OTHER, NOT 911`, name =  names_legend[7]) %>%
+      layout(xaxis = b, yaxis = a,barmode = 'stack',margin = m,
+             autosize = F, legend=leg)
+
+```
+
+```{r echo=FALSE}
+# Relationship between Disposition occurrency numbers, Precinct
+d <- crisis_data_subset %>% 
+    clean_names() %>%
+    select(precinct,disposition) %>%
+    filter(disposition != "" & precinct != "") %>%
+    group_by(precinct,disposition) %>% 
+    tally() 
+
+d <- d %>% spread(key = "disposition",value = "n") %>% clean_names()
+d[is.na(d)] = 0
+
+plot_ly(d, x = ~precinct, y = ~chronic_complaint, type="bar", name = 'Chronic Complaint',width = 900, height = 600) %>%
+        add_trace(y = ~crisis_clinic, name = 'Crisis Clinic') %>%
+        add_trace(y = ~dmhp_referral, name = 'DMHP Referral') %>%
+        add_trace(y = ~drug_alcohol_treatment_referral, name = 'Drug Alcohol Treatment Referral') %>%
+        add_trace(y = ~emergent_detention_ita, name = 'Emergent Detention ITA') %>%
+        add_trace(y = ~geriatric_regional_assessment_team, name = 'Geriatric Regional Assessment Team') %>%
+        add_trace(y = ~mental_health_agency_or_case_manager_notified, name = 'Mental Health Agency or Case Manager Notified') %>%
+        add_trace(y = ~no_action_possible_or_necessary, name = 'No Action Possible or Necessary') %>%
+        add_trace(y = ~resources_declined, name = 'Resources Declined') %>%
+        add_trace(y = ~shelter_transport, name = 'Shelter Transport') %>%
+        add_trace(y = ~subject_arrested, name = 'Subject Arrested') %>%
+        add_trace(y = ~unable_to_contact, name = 'Unable to Contact') %>%
+        add_trace(y = ~voluntary_committal, name = 'Voluntary Committal') %>%
+        layout(yaxis = list(title = 'Count'), barmode = 'stack', autosize = F, legend=leg)
+```
+

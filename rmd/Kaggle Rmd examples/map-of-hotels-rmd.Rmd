@@ -1,0 +1,51 @@
+### Get unique hotel names, geo, and score then map using leaflet
+
+```{r warning=FALSE, message=FALSE}
+full = read.csv('../input/Hotel_Reviews.csv')
+
+library(dplyr)
+library(tidyr)
+library(leaflet)
+library(leaflet.extras)
+library(scales)
+
+hotel.names = full %>%
+    select(Hotel_Name, Hotel_Address, lat, lng, Average_Score, Total_Number_of_Reviews,
+           Review_Total_Positive_Word_Counts, Review_Total_Negative_Word_Counts) %>%
+    #Remove the 17 records without geo coordinates
+    filter(lat != 0 & lng != 0) %>%
+    group_by(Hotel_Name, Hotel_Address, lat, lng, Average_Score, Total_Number_of_Reviews) %>%
+    summarise(Tot_Pos_Words = sum(Review_Total_Positive_Word_Counts),
+              Tot_Neg_Words = sum(Review_Total_Negative_Word_Counts),
+              Total_Words = sum(Tot_Pos_Words + Tot_Neg_Words),
+              Pos_Word_Rate = percent(Tot_Pos_Words/Total_Words),
+              Neg_Word_Rate = percent(Tot_Neg_Words/Total_Words))
+
+
+points <- cbind(hotel.names$lng,hotel.names$lat)
+
+
+
+```
+
+#### Create Leaflet Map
+
+```{r}
+leaflet() %>% 
+    addProviderTiles('OpenStreetMap.Mapnik',
+                     options = providerTileOptions(noWrap = TRUE)) %>%
+    addMarkers(data = points,
+               popup = paste0("<strong>Hotel: </strong>",
+                              hotel.names$Hotel_Name,                 
+                              "<br><strong>Address: </strong>", 
+                              hotel.names$Hotel_Address, 
+                              "<br><strong>Average Score: </strong>", 
+                              hotel.names$Average_Score, 
+                              "<br><strong>Number of Reviews: </strong>", 
+                              hotel.names$Total_Number_of_Reviews,
+                              "<br><strong>Percent Positive Review Words: </strong>",
+                              hotel.names$Pos_Word_Rate),
+               clusterOptions = markerClusterOptions())
+
+```
+

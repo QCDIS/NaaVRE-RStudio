@@ -1,0 +1,416 @@
+---
+title: "avg.ensemble rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Libraries, message=FALSE, warning=FALSE, echo=FALSE}
+library(randomForest)
+library(xgboost)
+library(Matrix)
+library(e1071 )
+library(earth)
+library(Metrics)
+library(data.table)
+library(methods)
+library(pls)
+require(ggplot2)
+```
+## Introduction
+
+The purpose of this script is to show the use of averaging predictions from
+different models as an ensemble. I had posted the avg.ensemble function
+in a forum post. Possibly, this will make it clearer what that was about.
+You can also find discussion in this blog - [KAGGLE ENSEMBLING GUIDE
+](http://mlwave.com/kaggle-ensembling-guide/). 
+Before it gets into the more advanced techniques of stacking and blending.
+
+There are other scripts and forum threads related to ensemble stacking for
+this competition. Off-hand refer to the script of JMT5802 or the forum post of Mei-Cheng Shih. I have probably missed others.
+
+This is for demo, so there will be nothing real fancy as far as data handling or model training.
+
+## Prepare the data
+Minimal. Refer to source if interested.
+```{r load, echo=FALSE}
+train <- read.csv("../input/train.csv")
+test <- read.csv("../input/test.csv")
+train <- data.frame(sapply(train,as.numeric))
+train[is.na(train)] <- 0
+train$Id <- NULL
+test <- data.frame(sapply(test,as.numeric))
+test[is.na(test)] <- 0
+```
+Done.
+
+## Run training models
+Also minimal, but will be shown.
+
+### Linear Model
+```{r lm}
+lm.model <- function(data) {
+  fit <- lm(SalePrice ~ .,data)
+  pred.lm <- fit$fitted.values
+  pred.lm
+}
+pred.lm <- lm.model(train)
+```
+
+### RandomForest
+````{r randomForest}
+rf.model <- function(data) { 
+  rf.mod <- randomForest(SalePrice ~ .,
+                         data = data,
+                         mtry=7,
+                         ntree = 550)
+  pred.rf <- rf.mod$predicted
+  pred.rf
+}
+pred.rf <- rf.model(train)
+````
+
+### XGBoost
+````{r xgboost}
+xgb.model <- function(data) {
+  target <- data[,c("SalePrice")]
+  data[,"SalePrice"] <- NULL
+  vars <- colnames(data)
+  data[,"SalePrice"] <- target
+  trainM <- as.matrix(data, rownames.force=NA)
+  trainS <- as(trainM, "sparseMatrix")
+  xgb_train <- xgb.DMatrix(data = trainS[,vars], label = trainS[,"SalePrice"])
+  
+  cv.sparse <- xgb.cv(data = xgb_train,
+                      nrounds = 300,
+                      min_child_weight = 0,
+                      max_depth = 10,
+                      eta = 0.02,
+                      subsample = .7,
+                      colsample_bytree = .7,
+                      booster = "gbtree",
+                      eval_metric = "rmse",
+                      verbose = F,
+                      prediction=T,
+                      nfold = 5,
+                      nthread = 2,
+                      stratified = T,
+                      objective="reg:linear")
+  pred.xgb <- cv.sparse$pred
+  pred.xgb
+}
+pred.xgb <- xgb.model(train)
+````
+
+### SVM
+SVM is not included in ensembling. When tuned it's results were too good which in turn skewed avg.ensemble results. Since it didn't do that well when actually submitted I have to suspect severe overfitting. Basically an outlier for whatever reason. This would be something to look out for in applying this if you don't get realistic looking results.
+````{r svm}
+svm.model <- function(data) {
+  model.svm <- svm(SalePrice ~ ., data,type="nu-regression", gamma=0.015625, cost=4)
+  pred.svm <- model.svm$fitted
+}
+pred.svm <- svm.model(train)
+````
+
+### earth 
+````{r earth}
+earth.model <- function(data) {
+  y <- data$SalePrice
+  x <- data
+  x$SalePrice <- NULL
+  model.earth <- earth(x,y,pmethod="exhaustive",degree=1)
+  pred.earth <- model.earth$fitted.values
+}
+pred.earth <- earth.model(train)
+````
+
+## Run avg.ensemble
+
+This will also create the data models.
+The parameters for the function are...
+
+**train** The training data.frame We assess against the training set since we have ground truth for it.
+
+**targetName** Column name for what is being predicted.
+
+**predsFUN** Function that returns data.table with prediction ensemble.
+
+**transFUN** Transformation performed on average and target when error is checked. e.g., log1p or log, in this competition. [Evaluation](https://www.kaggle.com/c/house-prices-advanced-regression-techniques/details/evaluation)
+
+**errFUN** Error function for evaluation. Defaults to `rmse` from the Metrics library.
+
+````{r avg.ensemble}
+
+# create a data.table with training predictions
+get.preds <- function(train,targetName) {
+# neither train or targetName is used in this implementation
+	lm <- abs(pred.lm)    # I seem to get one negative?
+	rf <- pred.rf
+	xgb <- pred.xgb
+#	svm <- pred.svm
+	earth <- pred.earth
+	dt <- data.table(lm,rf,xgb,earth)
+	colnames(dt)[4] <- "earth"
+	dt
+}
+
+# find the best average ensemble for a data.table of predictions
+avg.ensemble <- function(train,targetName,predsFUN,transFUN=NA,errFUN=rmse) {
+	if (missing(predsFUN)) {
+		stop("avg.ensemble a function must be provided to return a data.table with predictions")
+	}
+	preds.dt <- predsFUN(train,targetName)
+	# Get initial values for individual models
+	cat("avg.ensemble *** Individual Models ***\n")
+	for (i in 1:ncol(preds.dt)) {
+		col <- subset(preds.dt,select=c(i))
+		if (!missing(transFUN)) {
+			err <- errFUN(transFUN(train[,c(targetName)]),transFUN(col))
+		}
+		else {
+			err <- errFUN(train[,c(targetName)],col)
+		}
+		r.cor <- cor(train[,c(targetName)],col)
+		cat(i," (",colnames(preds.dt)[i],")\trmse=",err,"\tcor=",r.cor,"\n",sep="")
+	}
+	# Go for combinations
+	cat("\n")
+	cat("avg.ensemble *** Best Average Combinations ***\n")
+	best.1.err <- 999999999
+	best.1.r <- 0
+	best.2.err <- 999999999
+	best.2.r <- 0
+	for (r in 2:ncol(preds.dt)) {
+		c <- combn(ncol(preds.dt),r)
+		best.combn <- NA
+		best.err <- 999999999
+		avg <- NA
+		for (set in 1:ncol(c)) {
+			cols <- subset(preds.dt,select=c(c[,set]))
+			avg <- rowMeans(cols)
+			if (!missing(transFUN)) {
+				err <- errFUN(transFUN(train[,c(targetName)]),transFUN(avg))
+			}
+			else {
+				err <- errFUN(train[,c(targetName)],col)
+			}
+			if (err < best.err) {
+				best.err <- err
+				best.combn <- c[,set]
+			}
+		}
+		if (best.err < best.1.err) {
+			best.2.err <- best.1.err
+			best.2.r <- best.1.r
+			best.1.err <- best.err
+			best.1.r <- r
+		}
+		else if (best.err < best.2.err) {
+			best.2.err <- best.err
+			best.2.r <- r
+		}
+		r.out <- paste0("r=",r)
+		combs <- paste(best.combn,collapse=",")
+		cat(r.out," err=",best.err," (",combs,")\n",sep="")
+	}
+	cat("\n")
+	cat("***************\n")
+	cat("final top 2...\n")
+	r.out <- paste0("r=",best.1.r)
+	cat(r.out," err=",best.1.err,"\n",sep="")
+	r.out <- paste0("r=",best.2.r)
+	cat(r.out," err=",best.2.err,"\n",sep="")
+}
+
+avg.ensemble(train,"SalePrice",get.preds,log1p)
+````
+
+## Conclusion 
+
+Notice that the rmse for each average combination is lower than that for any
+individual model. This can improve your scores if you are looking at multiple models. It may or may not hold up against an unseen test set 
+like the private leaderboard. Using cross validation might be as close as 
+you can get to an approximate estimate against that.
+
+My own leaderboard score is not based on the current recommendations of avg.ensemble, although I tried those recommendations It is actually based on the second best combination recommended from a previous running of avg.ensemble. (It had been the combination my prior best leaderboard score was based on, I had done some hyperparameter tuning since). It is not necessarily completely accurate against unseen data but can be as guideline to good combinations for averaging.
+
+If I have time and submissions to spare I might include some actual leaderboard values here. Although these were toy implementations it might be of interest to see how well the results do actually hold up against the public leaderboard.
+
+To make an actual submission assuming you have made predictions against the test set it would go something like...
+
+````
+avg <- (lm.test+xgb.test+earth.test)/3
+submit <- data.frame(test.Id,avg)
+colnames(submit) <- c("Id","SalePrice")
+write.csv(submit,"submit.csv",row.names=F)
+````
+
+## Outliers
+According to the Kaggle Ensemble guide mentioned earlier.
+
+###Everything is a hyper-parameter
+
+Actually looking that up for what I'm doing here I also see...
+
+>Feature selection (top 70%) or imputation (impute missing features with a 0) are other
+examples of meta-parameters.
+>Like a random gridsearch is a good candidate for tuning algorithm parameters, so does it 
+work for tuning these meta-parameters.
+
+I had posted in the forum results from a buggy version of some code that checks the affect
+of different outlier thresholds with a grid search. Although, it's a 1 x n grid. The 
+thresholds and increments are based on standard deviations. 
+
+````{r data.check}
+data.check <- function(train,verbose=F,sd.seq = seq(2,5,.2)) {
+  result <- data.frame()
+  lm.all <- c()
+  lm.base <- 0
+  lm.worst <- -1
+  lm.best <- 999999999
+  lm.best.sd <- 999
+  earth.all <- c()
+  earth.base <- 0
+  earth.worst <- -1
+  earth.best <- 999999999
+  earth.best.sd <- 999
+  svm.all <- c()
+  svm.base <- 0
+  svm.worst <- -1
+  svm.best <- 999999999
+  svm.best.sd <- 999
+  rf.all <- c()
+  rf.base <- 0
+  rf.worst <- -1
+  rf.best <- 999999999
+  rf.best.sd <- 999
+  xgb.all <- c()
+  xgb.base <- 0
+  xgb.worst <- -1
+  xgb.best <- 999999999
+  xgb.best.sd <- 999
+  
+  earth.p <- earth.model(train)
+  earth.base <- rmse(log(train$SalePrice),log(earth.p))
+  lm.p <- lm.model(train)
+  lm.p[which(lm.p < 0)] <- 0
+  lm.base <- rmse(log1p(train$SalePrice),log1p(lm.p))
+  rf.p <- rf.model(train)
+  rf.base <- rmse(log(train$SalePrice),log(rf.p))
+  svm.p <- svm.model(train)
+  svm.base <- rmse(log(train$SalePrice),log(svm.p))
+  for (threshold in sd.seq) {
+    t.work <- train
+    if (verbose) {
+      cat("outlier impute(",impute.on,") threshold(sd) ",threshold,"\n")
+    }
+    for (col in 1:ncol(t.work)) {
+      t.m <- mean(t.work[,col]) 
+      t.sd <- sd(t.work[,col])
+      t.work[which(t.work[,col] > (t.m + threshold*t.sd)),col] <- t.m+threshold*t.sd
+    }
+
+    earth.p <- earth.model(t.work)
+    earth.err <- rmse(log(train$SalePrice),log(earth.p))
+    if (earth.err < earth.best) {
+      earth.best <- earth.err
+      earth.best.sd <- threshold
+    }
+    else if (earth.err > earth.worst) {
+      earth.worst <- earth.err
+    }
+    earth.all <- c(earth.all,earth.err)
+    if (verbose) {
+      cat("earth ",earth.err,"\n")
+    }
+    lm.p <- lm.model(t.work)
+    lm.err <- rmse(log1p(train$SalePrice),log1p(lm.p))
+    lm.all <- c(lm.all,lm.err)
+    if (lm.err < lm.best) {
+      lm.best <- lm.err
+      lm.best.sd <- threshold
+    }
+    else if (lm.err > lm.worst) {
+      lm.worst <- lm.err
+    }
+    if (verbose) {
+      cat("lm ",lm.err,"\n")
+    }
+    rf.p <- rf.model(t.work)
+    rf.err <- rmse(log(train$SalePrice),log(rf.p))
+    if (rf.err < rf.best) {
+      rf.best <- rf.err 
+      rf.best.sd <- threshold
+    }
+    else if (rf.err > rf.worst) {
+      rf.worst <- rf.err
+    }
+    rf.all <- c(rf.all,rf.err)
+    if (verbose) {
+      cat("rf ",rf.err,"\n")
+    }
+    svm.p <- svm.model(t.work)    
+    svm.err <- rmse(log(train$SalePrice),log(svm.p))
+    if (svm.err < svm.best) {
+      svm.best <- svm.err
+      svm.best.sd <- threshold
+    }
+    else if (svm.err > svm.worst) {
+      svm.worst <- svm.err
+    }
+    svm.all <- c(svm.all,svm.err)
+    if (verbose) {
+	    cat("svm ",svm.err,"\n")
+    }
+#	  row <- c(threshold,earth.err,lm.err,rf.err,svm.err)
+#	  result <- rbind(result,row)
+	xgb.p <- xgb.model(t.work)
+    xgb.err <- rmse(log(train$SalePrice),log(xgb.p))
+    if (xgb.err < xgb.best) {
+      xgb.best <- xgb.err
+      xgb.best.sd <- threshold
+    }
+    else if (xgb.err > xgb.worst) {
+      xgb.worst <- xgb.err
+    }
+    xgb.all <- c(xgb.all,xgb.err)
+    if (verbose) {
+	    cat("xgb ",xgb.err,"\n")
+    }
+	  row <- c(threshold,earth.err,lm.err,rf.err,svm.err,xgb.err)
+	  result <- rbind(result,row)
+  }
+  summary.data <- data.frame()
+  row <- c(earth.base,earth.worst,earth.best,earth.best.sd)
+  summary.data <- rbind(summary.data,row)
+  row <- c(lm.base,lm.worst,lm.best,lm.best.sd)
+  summary.data <- rbind(summary.data,row)
+  row <- c(rf.base,rf.worst,rf.best,rf.best.sd)
+  summary.data <- rbind(summary.data,row)
+  row <- c(svm.base,svm.worst,svm.best,svm.best.sd)
+  summary.data <- rbind(summary.data,row)
+  row <- c(xgb.base,xgb.worst,xgb.best,xgb.best.sd)
+  summary.data <- rbind(summary.data,row)
+  colnames(summary.data) <- c("base","worst","best","sd")
+  rownames(summary.data) <- c("earth","lm","rf","svm","xgb")
+  print(summary.data)
+  colnames(result) <- c("threshold","earth","lm","rf","svm","xgb")
+  result
+}
+
+dc <- data.check(train)
+print(dc)
+
+  ggplot(dc,aes(threshold)) +
+    geom_line(aes(y = earth, colour = "earth")) + 
+    geom_line(aes(y=lm,colour = "lm")) +
+    geom_line(aes(y=rf,colour="rf")) +
+    geom_line(aes(y=svm,colour="svm")) +
+    geom_line(aes(y=xgb,colour="xgb")) +
+    xlab("threshold (SD)") +
+    ylab("RMSE") 
+````
+
+

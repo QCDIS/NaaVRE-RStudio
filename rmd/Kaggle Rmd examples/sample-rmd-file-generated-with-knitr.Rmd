@@ -1,0 +1,430 @@
+---
+title: 'NYC Weather Analysis'
+author: 'Charles Carnegie'
+date: '27 July 2017'
+output:
+ html_document:
+   number_sections: true
+   toc: true
+   fig_width: 7
+   fig_height: 4.5
+   theme: cosmo
+   highlight: tango
+   code_folding: hide
+---
+  
+```{r}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, error=FALSE)
+#________________________________________________________________________
+# Note:   This script is written to be rendered into Rmd and HTML
+#         The #' comments is stripped off when the code is rendered
+#         Different types of blocks are market with lines
+#________________________________________________________________________
+```
+
+# Introduction
+
+The purpose of this kernel is to investigate the impact of weather on trip duration.
+Heads or Tails has produced a more definitive analysis of the problem @ https://www.kaggle.com/headsortails/nyc-taxi-eda-update-the-fast-the-classified
+
+As a new contributor, my goal is to build on his analysis by more completely analysing the impact of weather
+To date, I have only been able to improve model fit by less than 1%
+Questions, suggestions and comments would be welcome.
+
+## Approach
+
+The approach I have taken is to merge all the rides into one-hour bins and then match them to the METARS weather set.
+
+The logic is:
+ 
+1. Demonstrate that rides vary significantly by hour of the week. I.e. There are 24 x 7 or 168 separate hours of the week with different charecteristics.  
+
+2. Then look at the impact of weather on ride features.
+
+3. Then to calculate how much of ride variation can be explained by weather conditions, hour by hour.
+
+4. Finally to figure out how to extract the key weather variables so that they can be used by other teams in the general model.
+
+## Acknowledgements
+
+Thanks to Heads or Tails @ https://www.kaggle.com/headsortails from his great general intro kernel and graphics
+
+Thanks to  CarlesBalsach @ https://www.kaggle.com/cabaki for the weather dataset.
+
+Thanks to WTI200 @ https://www.kaggle.com/wti200 for his general kernal.
+
+# Setup
+
+
+
+```{r }
+#________________________________________________________________________
+
+library(tidyverse)
+library(lubridate)
+library(geosphere)
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(grid)
+library(forcats)
+
+#________________________________________________________________________
+#
+# Read with Kaggle input addresses
+#
+KNYC_Metars <- read_csv('../input/knycmetars2016/KNYC_Metars.csv')
+train <- read_csv('../input/nyc-taxi-trip-duration/train.csv')
+#test <- read_csv('../input/nyc-taxi-trip-duration/test.csv')
+
+
+#________________________________________________________________________
+#
+# Add in the multiplot function
+#
+multiplot <- function(..., plotlist = NULL, file, cols = 1, layout = NULL) {
+  require(grid)
+  plots <- c(list(...), plotlist)
+  numPlots = length(plots)
+  if (is.null(layout)) {
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  if (numPlots == 1) {
+    print(plots[[1]])
+  } else {
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    
+    for (i in 1:numPlots) {
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+quad_layout <- matrix(c(1,2,3,4),2,2,byrow=TRUE)
+#________________________________________________________________________
+```
+
+
+# Join the Weather Data
+
+Join the weather data and trip data together based on the mid trip time
+
+```{r }
+#________________________________________________________________________
+# 
+# Merge the training data with KNYC_Metars weather data
+# (based on the mid point of the trip)
+#   
+train$datetime <- (train$pickup_datetime + 
+                         ((train$dropoff_datetime - 
+                             train$pickup_datetime) / 2)) 
+train$datehour <- as_datetime(cut(train$datetime,breaks = "hour"))
+
+#
+KNYC_Metars$datehour <- as.POSIXct(KNYC_Metars$Time,"%d/%m/%Y %H:%M",tz="UTC")
+#
+weatherdata <- left_join(train, 
+                          KNYC_Metars, 
+                          by.x = train$datehour,
+                          by.y=KNYC_Metars$datehour)
+
+# Fill in unknown weather conditions
+weatherdata[is.na(weatherdata$Conditions),"Conditions"] <- "Unknown" 
+weatherdata[is.na(weatherdata$Events),"Events"] <- "Unknown"
+#________________________________________________________________________
+```
+
+
+# Feature Engineering
+
+The following new features are created in this code block:
+- Trip_to_airport trips are identified
+- hour, day, Hour of Week (how) - Assume that all hours are different
+- distance in metres
+- speed in km/hr
+- blizzard - notes the 2016 blizzard which was atypical
+- long (> )and short trips (less than 1 metre) are flagged
+
+```{r }
+#________________________________________________________________________
+#
+# Calculate time factors like Hour of the Week (how) and set as factors
+#
+weatherdata$day <- wday(weatherdata$datehour)
+weatherdata$date <- date(weatherdata$datehour)
+weatherdata$hour <- hour(weatherdata$datehour)
+weatherdata$how <- as.factor(100*weatherdata$day+weatherdata$hour) 
+#
+weatherdata <- weatherdata %>%
+  mutate(day = wday(datetime, label = TRUE),
+         day = fct_relevel(day, c("Mon", "Tues", "Wed", "Thurs", "Fri", "Sat", "Sun")),
+         weekday = (day %in% c("Mon","Tues","Wed","Thurs","Fri")),
+         worktime = (hour %in% seq(8,18)) & (day %in% c("Mon","Tues","Wed","Thurs","Fri"))
+  )
+weatherdata$hour <- as.factor(weatherdata$hour)
+#
+# Calculate trip distance speed and bearing
+#
+pick_coord <- weatherdata %>%
+  select(pickup_longitude, pickup_latitude)
+drop_coord <- weatherdata %>%
+  select(dropoff_longitude, dropoff_latitude)
+
+weatherdata$trip_dist <- distCosine(pick_coord, drop_coord)
+weatherdata$bearing  <- bearing(pick_coord, drop_coord)
+weatherdata$speed  <- weatherdata$trip_dist/weatherdata$trip_duration*3.6
+#
+# Flag trips to the airport
+#
+jfk_coord <- tibble(lon = -73.778889, lat = 40.639722)
+la_guardia_coord <- tibble(lon = -73.872611, lat = 40.77725)
+#
+weatherdata$jfk_dist_pick <- distCosine(pick_coord, jfk_coord)
+weatherdata$jfk_dist_drop <- distCosine(drop_coord, jfk_coord)
+weatherdata$lg_dist_pick <- distCosine(pick_coord, la_guardia_coord)
+weatherdata$lg_dist_drop <- distCosine(drop_coord, la_guardia_coord)
+#
+# Trips with a dropoff or pickup within 2km of the airport
+weatherdata <- weatherdata %>%
+  mutate(jfk_trip = (jfk_dist_pick < 2e3) | (jfk_dist_drop < 2e3),
+         lg_trip = (lg_dist_pick < 2e3) | (lg_dist_drop < 2e3)
+  )
+#
+# Label the 2016 blizzard
+#
+weatherdata <- weatherdata %>%
+  mutate(blizzard = !(date < ymd("2016-01-22") | (date > ymd("2016-01-29")) ))
+#
+# Set the weather conditions as factors
+#
+weatherdata$weather <- as.factor(weatherdata$Conditions)
+weatherdata$events <- as.factor(weatherdata$Events)
+#
+# Reorder the levels: from best to worst weather
+#
+# The weather factor levels are reordered as follows:
+# [1] "Clear"               
+#[10] "Partly Cloudy"
+# [8] "Mostly Cloudy"      
+# [9] "Overcast"
+# [2] "Haze"
+#[12] "Scattered Clouds"   
+#[14] "Unknown" 
+# [6] "Light Rain"          
+# [7] "Light Snow"
+#[11] "Rain"
+# [5] "Light Freezing Rain"
+#[13] "Snow"
+# [3] "Heavy Rain"
+# [4] "Heavy Snow"         
+
+weatherdata$weather = factor(weatherdata$weather,
+                              levels(weatherdata$weather)[c(1,10,8,9,2,12,14,6,7,11,5,13,3,4)])
+#
+#________________________________________________________________________
+```
+
+
+# Data Cleansing
+
+
+```{r }
+#________________________________________________________________________
+# 
+# This next piece of code is from Heads or Tails and reflects his analysis 
+# it takes out about 8,000 records
+#
+weatherdata <- weatherdata %>%
+  filter(trip_duration < 22*3600,
+         trip_dist > 0 | (near(trip_dist, 0) & trip_duration < 60),
+         jfk_dist_pick < 3e5 & jfk_dist_drop < 3e5,
+         trip_duration > 10,
+         speed < 100)
+
+#________________________________________________________________________
+```
+
+
+# Visual Analysis
+
+## Plot ride data by hour of the week
+The data below shows that the number, speed and distance of rides varies through the day and between week and weekend days.
+
+
+```{r }
+#________________________________________________________________________
+# 
+# Sumarise the data by day and hour
+#
+trip_avgs <- weatherdata%>%
+  group_by(day, hour,weekday)%>%
+  summarise(no_trips=n(),
+            avg_trip_dist=mean(trip_dist),
+            avg_trip_dur = mean(trip_duration),
+            trip_dist_var = sd(trip_dist))
+#
+trip_avgs$trip_t  <- trip_avgs$avg_trip_dist/trip_avgs$trip_dist_var
+#
+#  Plot the data 
+#
+g1 <- trip_avgs %>%
+  group_by(hour) %>%
+  ggplot(aes(hour,avg_trip_dur)) +
+  geom_point(aes(color = weekday))+
+  geom_smooth(aes())+
+  labs(x = "Average daily results by hour of the day", y = "Average Trip Duration")
+
+g2 <- trip_avgs %>%
+  group_by(hour, weekday) %>%
+  ggplot(aes(hour,avg_trip_dist)) +
+  geom_point(aes(color = weekday))+
+  geom_smooth(aes())+
+  labs(x = "Average daily results by hour of the day", y = "Average Trip Distance")
+
+g3 <- trip_avgs %>%
+  group_by(hour, weekday) %>%
+  ggplot(aes(hour,no_trips)) +
+  geom_point(aes(color = weekday))+
+  geom_smooth(aes())+
+  labs(x = "Average daily results by hour of the day", y = "Number of rides started")
+
+g4 <- trip_avgs %>%
+  group_by(hour, weekday) %>%
+  ggplot(aes(hour,trip_t)) +
+  geom_point(aes(color = weekday))+
+  geom_smooth(aes())+
+  labs(x = "Average daily results by hour of the day", y = "Variation in trip distance (mean/sd)")
+
+g1
+g2
+g3
+g4
+multiplot(g1,g2,g3,g4,layout=quad_layout)
+#________________________________________________________________________
+```
+
+
+## Summarise and plot the weather conditions
+
+
+```{r }
+#________________________________________________________________________
+#   
+weather_days <- weatherdata%>%
+  group_by(date,day,hour,how,weather,Precip,Visibility,events)%>%
+  summarise(num_trips=n(),
+            tot_trip_dur = sum(trip_duration),
+            tot_trip_dist = sum(trip_dist))
+#  
+g5 <- weather_days %>%
+  group_by(weather) %>%
+  count() %>%
+  ggplot(aes(weather, n, fill = weather)) +
+  geom_col() +
+  scale_y_sqrt()+
+  labs(x = "Weather conditions in NYC 2016/17", y = "Occurance in Hours ")
+
+g6 <- weather_days %>%
+  group_by(events) %>%
+  count() %>%
+  ggplot(aes(events, n, fill = events)) +
+  geom_col() +
+  scale_y_sqrt()+
+  labs(x = "Weather events in NYC 2016/17", y = "Occurance in Hours ")
+
+g5
+g6
+#________________________________________________________________________
+```
+
+
+## Summarise and plot the impact of weather conditions on rides
+
+
+```{r }
+#_______________________________________________________________________________
+#
+# Plot the average weather by hour and the impact of weather
+#
+weather_avgs <- weather_days%>%
+  group_by(how,day,hour,weather)%>%
+  summarise(no_of_records=n(),
+            tot_num_of_trips=sum(num_trips),
+            tot_trip_dur = sum(tot_trip_dur),
+            tot_trip_dist = sum(tot_trip_dist))
+#
+# Calculate the averages for each hour and condition
+#
+weather_avgs$trips_per_hour <- weather_avgs$tot_num_of_trips/weather_avgs$no_of_records
+weather_avgs$avg_trip_dist <- weather_avgs$tot_trip_dist/weather_avgs$tot_num_of_trips
+weather_avgs$avg_trip_dur <- weather_avgs$tot_trip_dur/weather_avgs$tot_num_of_trips
+weather_avgs$avg_trip_speed <- weather_avgs$tot_trip_dur/weather_avgs$tot_trip_dist
+
+#
+b1 <- weather_avgs %>%
+  ggplot(aes(weather, trips_per_hour, color = weather)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(y = "Trips/Hour", x = "Weather Conditions")
+
+b2 <- weather_avgs %>%
+  ggplot(aes(weather, avg_trip_dist, color = weather)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(y = "Average Trip Distance", x = "Weather Conditions")
+
+b3 <- weather_avgs %>%
+  ggplot(aes(weather, avg_trip_dur, color = weather)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(y = "Average Trip Duration", x = "Weather Conditions")
+
+b4 <- weather_avgs %>%
+  ggplot(aes(weather, avg_trip_speed, color = weather)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(y = "Average Trip Speed", x = "Weather Conditions")
+
+b1
+b2
+b3
+b4
+
+multiplot(b1,b2,b3,b4,layout=quad_layout)
+#________________________________________________________________________
+```
+
+
+# Modelling and Analysis
+
+
+```{r }
+
+#________________________________________________________________________
+```
+
+
+# Summary
+
+Including weather data improves the model as follows:
+
+
+```{r }
+#________________________________________________________________________
+#
+# The following values are calculated on the home machine as the model exceeds the Kaggle memory requirement
+base.r.squared <- 0.0698654
+weather.r.squared <- 0.07020437
+
+print(paste("R Squared for base model =",base.r.squared))
+print(paste("R Squared for weather model =",weather.r.squared))
+improvement <- weather.r.squared-base.r.squared
+print(paste("Weather features improve model by",percent(improvement)))
+
+#________________________________________________________________________
+```
+

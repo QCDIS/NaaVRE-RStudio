@@ -1,0 +1,180 @@
+
+---
+title: "Bike Sharing Analysis"
+author: "Ernst Gerard S. Jeng"
+date: "10/7/2021"
+output: html_document
+---
+
+## Overview
+The client is a bike-sharing company based in the United States. The director believes that the success of the company is hinged on maximizing the number of annual memberships. Therefore, we are tasked to understand the different behaviors of casual riders and annual members in order to gain insight which can be used to attract more annual members.
+
+Now the client has given us several data sets which we will begin with in order to find these useful insights. These data sets are the Q2, Q3, Q4 2019 as well as the Q1 2020 data they have garnered.
+
+## Installing the Required Packages
+First, we need to install the following pacakages:
+```{r packages}
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+```
+## Importing the Data Sets onto R
+Next, we upload the data sets given to us onto R and assign variables to these data frames.
+```{r }
+q2_2019 <- read_csv("../input/divvytrips-data/Divvy_Trips_2019_Q2.csv")
+q3_2019 <- read_csv("../input/divvytrips-data/Divvy_Trips_2019_Q3.csv")
+q4_2019 <- read_csv("../input/divvytrips-data/Divvy_Trips_2019_Q4.csv")
+q1_2020 <- read_csv("../input/divvytrips-data/Divvy_Trips_2020_Q1.csv")
+```
+
+## Wrangling the Data
+In order to put these data together, we need to combine them. Lets first check the columns to check if we can put them together
+```{r}
+colnames(q2_2019)
+colnames(q3_2019)
+colnames(q4_2019)
+colnames(q1_2020)
+```
+## Formatting the Columns Part 1
+From the previous section, we can see that the columns are not the same. We need to fix this in order to be able to put the data together.
+```{r}
+(q2_2019 <- rename(q2_2019,ride_id = "01 - Rental Details Rental ID"
+                   ,rideable_type = "01 - Rental Details Bike ID" 
+                   ,started_at = "01 - Rental Details Local Start Time"  
+                   ,ended_at = "01 - Rental Details Local End Time"  
+                   ,start_station_name = "03 - Rental Start Station Name" 
+                   ,start_station_id = "03 - Rental Start Station ID"
+                   ,end_station_name = "02 - Rental End Station Name" 
+                   ,end_station_id = "02 - Rental End Station ID"
+                   ,member_casual = "User Type"))
+
+(q3_2019 <- rename(q3_2019,ride_id = trip_id,rideable_type = bikeid ,started_at = start_time  
+                   ,ended_at = end_time  ,start_station_name = from_station_name 
+                   ,start_station_id = from_station_id ,end_station_name = to_station_name 
+                   ,end_station_id = to_station_id ,member_casual = usertype))
+(q4_2019 <- rename(q4_2019,ride_id = trip_id,rideable_type = bikeid ,started_at = start_time  
+                   ,ended_at = end_time  ,start_station_name = from_station_name 
+                   ,start_station_id = from_station_id ,end_station_name = to_station_name 
+                   ,end_station_id = to_station_id ,member_casual = usertype))
+```
+## Checking for Matching Column Types
+We use the string function to check if all the columns have matching column types before we put them together.
+```{r}
+str(q1_2020)
+str(q4_2019)
+str(q3_2019)
+str(q2_2019)
+```
+## Mutating in Order to Stack Properly
+As seen from the previous step, the 2019 data frames' 'ride_id' and 'rideable_type' columns have to be converted to the character type.
+```{r}
+q4_2019 <-  mutate(q4_2019, ride_id = as.character(ride_id)
+                   ,rideable_type = as.character(rideable_type)) 
+q3_2019 <-  mutate(q3_2019, ride_id = as.character(ride_id)
+                   ,rideable_type = as.character(rideable_type)) 
+q2_2019 <-  mutate(q2_2019, ride_id = as.character(ride_id)
+                   ,rideable_type = as.character(rideable_type))
+
+```
+## Stacking the Data Frames Together
+Now, we are able to stack the data frames into one big data frame
+```{r}
+all_trips <- bind_rows(q2_2019, q3_2019, q4_2019, q1_2020)
+```
+
+## Deleting Unneeded Columns
+There are several columns we won't be using in this analysis. So it may be best to remove these unwanted columns.
+```{r}
+all_trips <- all_trips %>%  
+  select(-c(start_lat, start_lng, end_lat, end_lng, birthyear, gender, "01 - Rental Details Duration In Seconds Uncapped", "05 - Member Details Member Birthday Year", "Member Gender", "tripduration"))
+```
+## Inspecting the New Data Frame
+Let us now take a look at our new data frame by using a few functions
+```{r}
+dim(all_trips)
+head(all_trips)
+summary(all_trips)
+```
+## Addressing Inconsistent Inputs in the Data Frame
+Notice that under the 'member_casual' column, "Customer" and "casual" are pertaining to the same classification of casual riders. To add to that, "member" and "Subscriber" also pertain to the same classification of members. We will now fix this to sort out this category into only two labels.
+```{r}
+all_trips <-  all_trips %>% 
+  mutate(member_casual = recode(member_casual
+                           ,"Subscriber" = "member"
+                           ,"Customer" = "casual"))
+table(all_trips$member_casual)
+```
+## Adding New Columns
+We also need to add new columns for the date, month, day, and year of each ride. We also need a new column for the duration of the rides.
+```{r}
+all_trips$date <- as.Date(all_trips$started_at)
+all_trips$month <- format(as.Date(all_trips$date), "%m")
+all_trips$day <- format(as.Date(all_trips$date), "%d")
+all_trips$year <- format(as.Date(all_trips$date), "%Y")
+all_trips$day_of_week <- format(as.Date(all_trips$date), "%A")
+all_trips$ride_length <- difftime(all_trips$ended_at,all_trips$started_at)
+```
+## Changing Column Types
+The "ride_length" column is currently Factor type. We will need to convert this into Numeric to be able to run calculations.
+```{r}
+all_trips$ride_length <- as.numeric(as.character(all_trips$ride_length))
+is.numeric(all_trips$ride_length)
+```
+## Removing "Bad" Data
+The director has also mentioned that there are entries that were recorded but in actuality were just taken out for quality checks and maintenance. In order to remove these entries, we will create a new version of the data frame.
+```{r}
+all_trips_v2 <- all_trips[!(all_trips$start_station_name == "HQ QR" | all_trips$ride_length<0),]
+```
+## Analyzing the Clean Data
+Let us take a look at some of the key statistics of this new data frame
+```{r}
+summary(all_trips_v2$ride_length)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = mean)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = median)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = max)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = min)
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual + all_trips_v2$day_of_week, FUN = mean)
+```
+## Sorting the Data
+The data may be easier to read if the days of the week were sorted out
+```{r}
+all_trips_v2$day_of_week <- ordered(all_trips_v2$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual + all_trips_v2$day_of_week, FUN = mean)
+```
+## Further Analysis
+Lets try to view this by type and day of the week as well.
+```{r} 
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>%  
+  group_by(member_casual, weekday) %>%  
+  summarise(number_of_rides = n()							 
+  ,average_duration = mean(ride_length)) %>% 		
+  arrange(member_casual, weekday)		
+```
+## Visualizing Data
+Finally, lets create some charts to get a visual representation of the data.
+```{r}
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")
+
+all_trips_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge")
+
+```
+## Conclusion and Recommendation
+According to our findings, casual riders, on average, actually have longer duration per ride compared to annual membership holders. Moreover, on weekends, casual riders spend more time on riding these bikes whereas on weekdays, membership holders spend more time riding the same bikes.
+
+Given these findings, a possibility is that the reason behind prospective customers purchasing an annual membership isn't necessarily just for leisure but possibly as a means to travel to and from their offices during the weekdays. With this in mind, we may be able to create a marketing campaign focusing on the health, and environmental, as well as cost-savings, benefits of availing of annual memberships.
+

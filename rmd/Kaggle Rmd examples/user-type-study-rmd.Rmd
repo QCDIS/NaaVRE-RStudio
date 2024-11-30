@@ -1,0 +1,466 @@
+---
+title: "User type study"
+author: "Heather"
+date: "8/23/2021"
+output: 
+    html_document:
+        toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+*This case study is part of the Capstone of the Google Data Analytics Professional Certificate*
+
+# Introduction
+Cyclistic is a bike-share company in Chicago. The director of marketing believes the company’s future success depends on maximizing the number of annual memberships. Therefore, the marketing analyst team I work for wants to understand how casual riders and annual members use Cyclistic bikes differently. From these insights, our team will design a new marketing strategy to convert casual riders into annual members. 
+
+# Phase 1 Ask 
+1. Business task   
+The business task is to identify the difference between casual and member users of Cyclistic bikes by analyzing the historical bike trip data. Answer to this question will help the team to further the study on member conversion and the related marketing tactics.
+
+2. Key stakeholders  
+**Primary stakeholder** Lily Moreno, the director of marketing and your manager. Moreno is responsible for the development of campaigns and initiatives to promote the bike-share program. These may include email, social media, and other channels.  
+**Secondary stakeholder** Other fellow data analysts on the analyst team and the executive team 
+
+# Phase 2 Prepare 
++ **Where is the data located?**  
+The historical trip data was saved in compressed files on [Amazon Web Service](https://divvy-tripdata.s3.amazonaws.com/index.html). 
+
++ **How is the data organized?**  
+The data set is for period from Jan 2013 to Jun 2021.   
+Data for rides before Apr 2020 was uploaded on one occasion on Jan 25, 2020. After that, it was uploaded monthly, within 20 days the following month.   
+The data set was last modified on Jul 16, 2021, with the upload of the Jun 2021 rides.
+
++ **Are there any problems with the data?**  
+In 2013 there are 12 columns in the table, compared with 13 cols in 2021. The differences include:
+  * *Rideable_type* col added in the 2021 version
+  * *Longitude* and *latitude* of start and end places added in the 2021 version
+  * *Gender* and *birth year* cols removed in the 2021 version
+
++ **Are there issues with bias or credibility in this data? Does your data ROCCC?**  
+The data appears to be reliable, original, comprehensive and current. However, there is not evidence that it has been cited by another source.  
+Judging by the columns contained in the data, there is not obvious source of sampling bias, free of observer bias, interpretation bias (as observers are not introduced in the observations) and confirmation bias.
+
++ **How are you addressing licensing, privacy, security, and accessbility?**  
+*Licensing* - It’s made available by Motivate International Inc. under [Data License Agreement](https://www.divvybikes.com/data-license-agreement).  
+*Privacy* - The data collected doesn’t contain info that leads to or identify a person.   
+Divvy states that each trip is anonymized which means rides cannot be linked back to the users to expose their identity or other personal info.  
+The license prohibits (f.) attempt to coorelate the Data with names, addresses, or other information of customers or Members of Motivate  
+*Security* - Security means the data is stored in a secure place, free from unauthorized access and can be retrieved on demand.  
+Data is now saved in Divvy’s system. It takes assessment on their systme to decide security in this sense.  
+*Accessibility* - The data is collected by Divvy (first-party data), and made available by Movitate to the public. Access to it, and usage and sharing of it is free. The Data License Agreement grants to the public a perpetual license to access, reproduce, analyze, copy, modify, distribute in users’ product or serice and use the Data for any lawful purpose.
+
+
+# Phase 3 Process
+**Check the data for errors**   
+  1. There are 9,872 rows of negative ride length and 480 rows of ride length equal to 0 sec.  
+  2. NULLs are found in columns: *start_station_name, start_station_id, end_station_name, end_station_id, end_lat, end_lng*  
+  3. There are some extremely long rides, separated by length, including:  
+      - *Rides over 72h* 753 rows, 0.016% of total[^1]
+      - *Rides over 24h* 3,564 rows, 0.080% of total
+      - *Rides over 3h* 29,356 rows, 0.66% of total
+
+[^1]: Total here does not include negative or 0-sec rides. The same total is used in other extremely long rides accounting.
+
+
+**Choose the tool**  
+*SQL & R* were chosen as tools to process the original files, for *joining tables/binding rows*, *calculation* (of length of ride, and total of rides) and *filtering* (by month, day of the week, hour of the day, and start station), as most files are over 30MB and containing hundreds of thousand of data.  
+*Excel & Tableau* was used on grouped data for *visualization*, to complement viz by R.
+
+**Transforming the data to facilitate the analysis**  
+  First download and unzip 12 zip files of previous 12 months
+
+  *In SQL*  
+  - Import the 12 tables in .csv
+  - Join the tables with UNION ALL and create a view to store all 12-month data
+  - Count the ride ID (4,460,151) and the distinct ride ID to check if there are duplicate rides: no duplicates found
+  - Check the mapping of start station name with the start_lat and start_lng. Lower the precision of lat and lng for count of rides in an area reprented by coordinates rounded to second decimal place. 
+  
+  *In R*
+  - Import the 12 tables with read.csv()
+  - Converted *start_station_id* and *end_station_id* to character to enable the joining
+  - Join the 12 tables with *bind_rows()*
+  - Add cols to display *year, month, date, wday, length_in_sec, length_in_minute* for grouping and calculation purpose
+  
+  *In Tableau*
+  - Imported the .csv containing data about rides grouped by lat, lng and user type
+  - Changed the *Geographic Role* of column *start_lng* to *Longitude*
+  - Dropped *start_lat* and *start_lng* dimensions on the canvas. Drag *start_station_name* and Sum(*total*) under filter. Filter out the rides with NULL in *start_station_name* as their lats and lngs concentrate in nowhere on Lake Michigan
+  - Drag *member_casual* to Color in Marks, Sum(total) to size, label and detail
+  - Choose Pie to display the share between *member* type and *casual* type
+
+**Cleaning process**    
+
+Date | Change
+-----|-------
+Aug 12 |1 Checked the columns where NULLs exist 
+- | 2 Found the number of rows where length of ride < = 0 sec 
+Aug 20 | 1 Changed the type of start_station_id and end_station_id from integer to character 
+- | 2 Found 582 stations with two start_station_id and 130 with one start_station_id, 1 with three start_station_id. Noted that with precision set to 3rd decimal place: each set of coordinates can have 1-5 stations; each station can have 1-19 cooridinate sets.
+- | 3 Lowered the precision to 2nd decimal place to group rides by a larger area in Tableau
+
+
+```{r LOAD PACKAGES, include=FALSE}
+# Package loading ------------------------------------------------------
+# Load required packages
+# tidyverse for data import and wrangling
+# lubridate for date functions
+# ggplot for visualization
+
+library(tidyverse) # helps wrangle data
+library(lubridate) # helps wrangle data attirbutes
+library(ggplot2) # helps visualize date
+
+```
+
+
+```{r IMPORT DATA, include=FALSE}
+t2020_07 <- read.csv("../input/divvytripdata/202007-divvy-tripdata.csv")
+t2020_08 <- read.csv("../input/divvytripdata/202008-divvy-tripdata.csv")
+t2020_09 <- read.csv("../input/divvytripdata/202009-divvy-tripdata.csv")
+t2020_10 <- read.csv("../input/divvytripdata/202010-divvy-tripdata.csv")
+t2020_11 <- read.csv("../input/divvytripdata/202011-divvy-tripdata.csv")
+
+t2020_12 <- read.csv("../input/divvytripdata/202012-divvy-tripdata.csv")
+t2021_01 <- read.csv("../input/divvytripdata/202101-divvy-tripdata.csv")
+t2021_02 <- read.csv("../input/divvytripdata/202102-divvy-tripdata.csv")
+t2021_03 <- read.csv("../input/divvytripdata/202103-divvy-tripdata.csv")
+t2021_04 <- read.csv("../input/divvytripdata/202104-divvy-tripdata.csv")
+t2021_05 <- read.csv("../input/divvytripdata/202105-divvy-tripdata.csv")
+t2021_06 <- read.csv("../input/divvytripdata/202106-divvy-tripdata.csv")
+```
+
+
+**Number of observations** in 12 tables, with rows of valid length marked.
+
+File name |Rows in CSV |Rows with positive length
+-----|----- |------
+202007-divvy-tripdata.csv|551,480 |549,665
+202008-divvy-tripdata.csv|622,361 |619,481
+202009-divvy-tripdata.csv|532,958 |530,767
+202010-divvy-tripdata.csv|388,653 |386,702
+202011-divvy-tripdata.csv|259,716 |258,823
+202012-divvy-tripdata.csv|131,573 |131,131
+202101-divvy-tripdata.csv|96,834  |96,828
+202102-divvy-tripdata.csv|49,622  |49,618
+202103-divvy-tripdata.csv|228,496 |228,484
+202004-divvy-tripdata.csv|337,230 |337,192
+202005-divvy-tripdata.csv|531,633 |531,579
+202006-divvy-tripdata.csv|729,595 |729,529
+total |4,460,151 |4,449,799
+  
+```{r BIND ROWS, include=FALSE}
+# start_station_id and end_station_id are not uniformed in the files
+# Before Dec 2020, they are integer; afterwards, character
+# So breaking down the rows-binding in two steps
+# Bind 202007-202011 to one table, the others to another
+
+rides_a <- bind_rows(
+  t2020_07, t2020_08, t2020_09,
+  t2020_10, t2020_11
+)
+
+rides_b <- bind_rows(
+  t2020_12,
+  t2021_01, t2021_02, t2021_03,
+  t2021_04, t2021_05, t2021_06
+)
+
+rides_a$start_station_id <- as.character(rides_a$start_station_id)
+rides_a$end_station_id <- as.character(rides_a$end_station_id)
+
+# Then these two tables are joined into one, df
+df <- bind_rows(rides_a, rides_b)
+```
+  
+
+**New columns** added in the dataframe *rides*.
+
+New column | Description
+-----------|------------
+Length_in_sec | Length of ride in seconds
+Length_in_min | Length of ride in minutes
+year | The year in which the ride started
+month | The month in which the ride started
+dow | The day of week on which the ride started
+date | The date on which the ride started 
+
+```{r ADD COLUMNS, include=FALSE}
+# Add columns needed for calculation and grouping
+
+rides <- mutate(
+  df,
+  length_in_sec = (ymd_hms(ended_at) - ymd_hms(started_at)) / dseconds(1),
+  length_in_min = round((ymd_hms(ended_at) - ymd_hms(started_at)) / dseconds(60), 0),
+  year = year(ymd_hms(started_at)),
+  month = month(ymd_hms(started_at), label = TRUE),
+  dow = wday(ymd_hms(started_at), label = TRUE),
+  date = date(ymd_hms(started_at))
+)
+```
+ 
+  
+```{r SHORT RIDES LESS THAN 10 SEC, include=FALSE}
+# Check how many rides there are below or equal to 10 secs
+# They seem to be failed attempts to prepare the bike and should not be counted
+# 20,667 records found with length of ride below 10 sec, 0.46% of total
+
+rides %>% filter(length_in_sec > 0 & length_in_sec <= 10) 
+```
+
+  
+```{r MAX LENGTH OF RIDE, include=FALSE}
+# Check how long the longest ride is
+max(rides$length_in_min)
+```
+  
+  
+```{r EXTREMELY LONG RIDES, include=FALSE}
+# Extremely long rides over 72h
+# 753 records in total, including 729 casual rides and 24 member rides
+# It makes 0.016% of total rides
+long_72 <-
+  mutate(rides,
+    length_in_h = (ymd_hms(rides$ended_at) - ymd_hms(rides$started_at)) / dseconds(3600)
+  ) %>%
+  filter(length_in_h > 72) %>%
+  group_by(member_casual) %>%
+  summarize(count = n())
+
+
+# Extreme rides over 24h
+# 3,564 records in total, including 3165 casual and 399 member
+# Making 0.080% of total rides
+long_24 <-
+  mutate(rides,
+    length_in_h = (ymd_hms(rides$ended_at) - ymd_hms(rides$started_at)) / dseconds(3600)
+  ) %>%
+  filter(length_in_h > 24) %>%
+  group_by(member_casual) %>%
+  summarize(count = n())
+
+
+# Because single pass supports longest session of 3h
+# I calculated the rides beyond this
+# There are 29,356 rides in total, including 25,745 of casual type and 3,611 of member
+# It makes 0.66% of total rides
+long_3 <-
+  mutate(rides,
+    length_in_h = (ymd_hms(rides$ended_at) - ymd_hms(rides$started_at)) / dseconds(3600)
+  ) %>%
+  filter(length_in_h > 72) %>%
+  group_by(member_casual) %>%
+  summarize(count = n())
+
+# Histogram showing how over 72h long rides distribute
+rides %>%
+  mutate(
+    length_in_h = (ymd_hms(rides$ended_at) - ymd_hms(rides$started_at)) / dseconds(3600)
+  ) %>%
+  filter(length_in_h > 72) %>%
+  group_by(member_casual) %>%
+  ggplot(aes(x = length_in_h, color = member_casual)) +
+  geom_freqpoly(binwidth = 2)
+```
+
+# Phase 4 Analyze 
+
+**A summary of your analysis**
+
+**1. How the two types differ in terms of rides, by day of week, by year and by the hour?**
+
+  + Total rides vary through the year. In five months Jun (2021), Aug (2020), Jul (2020), Sep (2020), May (2021), the montly total is over 500,000. In 3 months, the totals are less than or a little over 100, 000
+  + Casual rides makes up *43%* of the total rides
+  + Casual rides overtook member rides on the weekend *(54% vs 46%)*
+  + Casual rides share dived in cold months of Dec, Jan and Feb to 21% of total rides
+  + During a day, rides peak in hours 16-18h and are at the lowest in 01-05h (below 50,000)
+ 
+  
+**2. How the two types differ in terms of length of ride, by day of week and by year?**
+
+  + Throughout the year, average length of member rides stay below 20 through the year whereas average length of casual rides vary between 26-60 min[^2]. Yearly average length of ride is 40.91 min for casual type, 15.15 min for member type (counting extremely long rides)
+  + Average length of rides slightly rise on the weekend in both groups
+  + Median length of casual type is below 25 min whereas of member type it is around 12.5 min.
+  
+  [^2]: Counting extremely long rides
+  
+**3. How the two types differ in terms of where the rides were started?**
+
+  + Most popular start stations are along the coast
+  + In four popular areas more member rides are made 
+  + The further from coast, the fewer the rides, and the inner the location, the smaller the casual rides’ share
+
+Below plot compares the total rides of both type in the last 12 months.
+Length of rides were filtered to exclude those of <=10 sec and >= 24 h.
+```{r SHOW TOTAL RIDES OF TWO TYPES, echo=FALSE}
+# Exclude the extremely short and long rides
+# 1440 min = 24 h
+rides %>%
+  filter(length_in_sec > 10 & length_in_min < 1440) %>%
+  group_by(member_casual) %>%
+  summarize(total_ride = n()) %>%
+  ggplot() +
+  geom_col(mapping = aes(
+    x = member_casual, y = total_ride / 1000,
+    fill = member_casual
+  )) +
+  ylab("Total rides, '000") +
+  labs(title = "Rides all year")
+```
+
+
+Rides of two types were plotted by day of the week
+```{r SHOW RIDES OF TWO TYPES BY DAY OF THE WEEK, echo=FALSE}
+rides %>%
+  filter(length_in_sec > 10 & length_in_min < 1440) %>%
+  group_by(dow, member_casual) %>%
+  summarize(total_ride = n()) %>%
+  ggplot() +
+  geom_col(mapping = aes(
+    x = dow, y = total_ride / 1000,
+    fill = member_casual
+  )) +
+  ylab("Total rides, '000") +
+  labs(title = "More casual rides on the weekend")
+```
+
+
+Rides of two types were plotted by the month
+```{r SHOW RIDES OF TWO TYPES BY THE MONTH, echo=FALSE}
+rides %>%
+  filter(length_in_sec > 10 & length_in_min < 1440) %>%
+  group_by(year, month, member_casual) %>%
+  summarize(ride_total = n()) %>%
+  ggplot() +
+  geom_col(mapping = aes(x = month, y = ride_total / 1000, 
+                         fill = member_casual
+                         ), 
+           position = 'dodge') +
+  labs(title = "Rides by month", subtitle = "casual vs. member") +
+  facet_wrap(vars(year))+
+  ylab("Total of rides, '000") +
+  xlab("")
+```
+  
+
+Rides were plotted by the hour 
+```{r BUSIEST HOURS DURING A DAY, echo=FALSE}
+rides %>%
+  filter(length_in_sec > 10 & length_in_min < 1440) %>%
+  mutate(hour = hour(started_at)) %>%
+  group_by(member_casual, hour) %>%
+  summarize(count = n()) %>%
+  ggplot(aes(x = hour, y = count / 1000, fill = member_casual)) +
+  geom_col() +
+  ylab("Total rides, '000") +
+  xlab('Hour of the day') +
+  labs(title = 'Most rides started in *16-18pm*') +
+  # theme(axis.title.x = ggtext::element_mark) +
+  annotate("rect", xmin = c(0.5,15), xmax = c(4.5,18.5), 
+           ymin = c(0,350) , ymax = c(50,460), 
+           alpha = 0.1, color = "grey") +
+  annotate('text', x = 2.5, y = 60, 
+           label = c('Lowest')) +
+  annotate('text', x = 12.5, y = 400, 
+           label = c('Highest'))
+```
+  
+
+A scatter plot was used to map how the average length of ride varied through 365 days
+```{r LENGTH CHANGE THROUGH THE YEAR, echo=FALSE}
+# Scatter plot to show how average length of two types vary through 365 days
+rides %>%
+  filter(length_in_sec > 10 & length_in_min < 1440) %>%
+  group_by(date, member_casual) %>%
+  summarize(avg_length = round(mean(length_in_min), 0), count = n()) %>%
+  ggplot(aes(x = date, y = avg_length, size = count, color = member_casual)) +
+  geom_point(alpha = 1 / 3) +
+  xlab('') +
+  annotate('rect', xmin = ymd('20210201'), xmax = ymd('20210228'), 
+           ymin = 0, ymax = 55,
+           alpha = 0.1, 
+           color = 'grey') +
+  annotate('text', x = ymd('20210214'), y = 63,
+           label = 'Length jumped in Feb') +
+  annotate('text', x = ymd('20201101'), y = 6,
+           label = 'Length of member rides are relatively stable')
+```
+  
+
+Below plot shows average length slightly rise on the weekend for both groups of users  
+```{r LONGER RIDES ON THE WEEKEND, echo=FALSE}
+# Check how length varies between two types through the week
+
+# Length is slightly longer on the weekend
+# Casual type is two times that of member
+rides %>%
+  filter(length_in_sec > 10 & length_in_min < 1440) %>%
+  group_by(dow, member_casual) %>%
+  summarize(avg_length = mean(length_in_min)) %>%
+  ggplot() +
+  geom_point(
+    mapping = aes(
+      x = dow,
+      y = avg_length,
+      color = member_casual,
+      size = avg_length
+    ),
+    # position = "dodge"
+  ) +
+  # facet_grid(rows = vars(member_casual)) +
+  ylab("Average ride length, min") +
+  xlab("") +
+  labs(title = "Average ride length through the week")
+
+```
+  
+
+Below are boxplots used to check the median length of rides of two types.
+Length was filtered to exclude rides longer than 3h for the scalability of the y-axis.  
+```{r MEDIAN LENGTH BY MONTH & DAY OF THE WEEK, echo=FALSE}
+# With geom_boxplot
+# How median length changes by month
+# With length of ride set below 3h, to make a reasonable scale for y axis
+rides %>%
+  filter(length_in_sec > 10 & length_in_min < 180
+  ) %>%
+  ggplot(
+    aes(x = month, y = length_in_min, color = member_casual)
+  ) +
+  geom_boxplot() +
+  facet_grid(cols = vars(year)) +
+  xlab('')
+
+# With geom_boxplot
+# How median length changes by day of the week
+# With length of ride set below 3h, to make a reasonable scale for y axis
+rides %>%
+  filter(length_in_sec > 10 & length_in_min < 180) %>%
+  group_by(member_casual) %>%
+  ggplot(aes(x = dow, y = length_in_min, color = member_casual)) +
+  geom_boxplot() +
+  facet_wrap(~member_casual)+
+  xlab('') 
+```
+
+
+# Phase 5 Share 
+**Supporting visualizations and key findings**  
+Live rides map can be viewed here:  
+https://public.tableau.com/app/profile/heather.tang/viz/Divvybike-share-casestudy1-GDAC/length-and-total
+
+
+# Phase 6 Act 
+**Top three recommendations based on the analysis**
+
+  + **Casual rides overtook member rides on the weekend,  with a 42% on its weekday number.**  
+    Promote membership on the evidence that if a rider uses Divvy’s bike twice a week, he’ll save by switching to an annual plan.
+    For an average ride, it’ll cost 3.3 + (40.91* – 30) * 0.15 = 4.95 USD. Double it will exceed the annual membership charge of 9 USD per month.
+    
+  + **Casual rides shrank to 50% of total rides in colder months, than it was in other months.**  
+    We can consider launching a winter promotion and provide a special price for 30min session, to encourage casual rides. We see the ratio between casual and member rides are stable in other months.  Through a well-thought price strategy, we can challenge the low result due to less activity in cold months.
+    
+  + **On average, length of casual rides is 2.6 times of member rides.**  
+We may consider extending the session from 30min to 45min for casual riders with either a smaller raise in charge or without it to check if that encourages more casual ride.
