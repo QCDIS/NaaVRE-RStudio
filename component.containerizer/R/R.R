@@ -29,6 +29,11 @@ main <- function() {
       id='params_div',
       h4('Params')
     ),
+    div(
+      id='dependencies_div',
+      h4('Dependencies'),
+      htmlOutput('dependency_list')
+    ),
     selectInput('base_image_selector', 'Base Image', c()),
     actionButton('create_button', 'Create'),
     htmlOutput('creation_result_output')
@@ -36,7 +41,7 @@ main <- function() {
   server <- function(input, output, session) {
     linesep <- '\n'
     type_choices = c('Integer'='int', 'Float'='float', 'String'='str', 'List'='list')
-    categories <- c('input', 'output', 'param')
+    categories <- c('input', 'output', 'param', 'dependency')
 
     API_ENDPOINT <- Sys.getenv('API_ENDPOINT')
     CONTAINERIZER_PREFIX <- 'api/containerizer'
@@ -147,16 +152,32 @@ main <- function() {
             extraction_results <<- rjson::fromJSON(httr2::resp_body_json(response), simplify=FALSE)
           }, error=function(e) { print(e) })
 
+          get_plural <- function(single) {
+            if (single == 'dependency') { return('dependencies') }
+            return(paste0(single, 's'))
+          }
           for (category in categories) {
-            plural <- paste0(category, 's')      # ex. inputs
+            plural <- get_plural(category)       # ex. inputs
             div_name <- paste0(plural, '_div')   # ex. input_div
-            prefix <- paste0(category, '_type_') # ex. input_type_a
             if (plural %in% names(extraction_results) && length(extraction_results[[plural]])) {
-              IDs <- extraction_results[[plural]]
-              removeUI(paste0('div:has(> [id^="', prefix, '"])'), multiple=TRUE) # remove type selectors for prev extracted cell
-              insertUI(selector=paste0('#', div_name), where='beforeEnd',
-                       ui=tagList(lapply(1:length(IDs), function(i) { selectInput(paste0(prefix, IDs[i]), IDs[i], choices=type_choices)}))
-              ) # add new type selectors for current extracted cell
+              if (plural != 'dependencies') {
+                IDs <- extraction_results[[plural]]
+                prefix <- paste0(category, '_type_') # ex. input_type_a
+                removeUI(paste0('div:has(> [id^="', prefix, '"])'), multiple=TRUE) # remove type selectors for prev extracted cell
+                insertUI(selector=paste0('#', div_name), where='beforeEnd',
+                         ui=tagList(lapply(1:length(IDs), function(i) { selectInput(paste0(prefix, IDs[i]), IDs[i], choices=type_choices)}))
+                ) # add new type selectors for current extracted cell
+              }
+              else {
+                deps <- extraction_results[[plural]]
+                rendered_dep_list <- c()
+                for (dep in deps) {
+                  p <- length(rendered_dep_list) + 1
+                  if ('module' %in% names(dep) && dep[['module']] != '') { rendered_dep_list[[p]] <- paste0(dep[['module']], ' • ', dep[['name']], '<br>') }
+                  else { rendered_dep_list[[p]] <- paste0(dep[['name']], '<br>') }
+                }
+                output$dependency_list <- renderUI({ HTML(paste(rendered_dep_list)) })
+              }
               shinyjs::show(div_name) # show this category new type selectors
             }
             else { shinyjs::hide(div_name) }
@@ -200,6 +221,7 @@ main <- function() {
     shinyjs::hide('inputs_div')
     shinyjs::hide('outputs_div')
     shinyjs::hide('params_div')
+    shinyjs::hide('dependencies_div')
 
     parsing_results <- parse_md()
 
