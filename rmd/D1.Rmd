@@ -1,27 +1,34 @@
 ```{r}
 # give parameter p
+w <- 0
+x <- 1
+y <- 2
+z <- 3
 param_p <- 'abc'
 ```
 
 ```{r}
-# Input list
+# Input name list
 library(dplyr)
+param_a = '`'
+print(w)
 names <- c('Alice', 'Bob')
 ```
 
 ```{r}
-# Process list
-library(stringr)
+# Process name list
+library(stats)
 for (name in names) {
   print(paste0('Hello, ', name))
 }
-x <- 1
+t <- x + y
+m <- stats::median(c(1, 2))
+print(base::Sys.getenv())
 print(param_p)
-
-print(stringr::str_interp('p = ${param_p}'))
 ```
 
 ```{r}
 # print intermediate variable x
-print(x)
+print(t)
+print(param_a)
 ```

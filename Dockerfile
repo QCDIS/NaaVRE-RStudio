@@ -19,7 +19,7 @@ RUN apt-get update && \
 ENV PATH=$PATH:/usr/lib/rstudio-server/bin
 
 # install RStudio extension CellContainerizer
-COPY component.containerizer_0.0.3.tar.gz .
+COPY component.containerizer_0.0.4.tar.gz .
 RUN echo 'options(repos = c(CRAN = "https://cloud.r-project.org"))' > ~/.Rprofile
 RUN Rscript -e "install.packages('devtools', lib=.Library)"
-RUN Rscript -e "devtools::install_local('$PWD/component.containerizer_0.0.3.tar.gz', lib=.Library)"
+RUN Rscript -e "devtools::install_local('$PWD/component.containerizer_0.0.4.tar.gz', lib=.Library)"

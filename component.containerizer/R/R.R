@@ -104,6 +104,7 @@ main <- function() {
           )) # cat/paste0 cannot handle trailing comma in its arg list
         })
         output$creation_result_output <- renderUI({ NULL })
+        updateSelectInput(session, 'code_chunk_selector', choices=choices_placeholder)
         updateSelectInput(session, 'code_chunk_selector', choices=setNames(parsing_results[['rmd_chunk_indices']], parsing_results[['rmd_chunk_labels']]))
       }
 
