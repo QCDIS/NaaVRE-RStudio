@@ -119,6 +119,7 @@ main <- function() {
       extract <- function() {
         cell_index <- as.numeric(input$code_chunk_selector)
 
+        shinyjs::disable('create_button')
         output$code_output <- renderUI({ # show selected code chunk
           if (is.na(cell_index)) { selected_code <<- '' }
           else {
@@ -156,11 +157,13 @@ main <- function() {
             if (single == 'dependency') { return('dependencies') }
             return(paste0(single, 's'))
           }
+          has_iop <- FALSE
           for (category in categories) {
             plural <- get_plural(category)       # ex. inputs
             div_name <- paste0(plural, '_div')   # ex. input_div
             if (plural %in% names(extraction_results) && length(extraction_results[[plural]])) {
               if (plural != 'dependencies') {
+                has_iop <- TRUE
                 IDs <- extraction_results[[plural]]
                 prefix <- paste0(category, '_type_') # ex. input_type_a
                 removeUI(paste0('div:has(> [id^="', prefix, '"])'), multiple=TRUE) # remove type selectors for prev extracted cell
@@ -182,6 +185,7 @@ main <- function() {
             }
             else { shinyjs::hide(div_name) }
           }
+          if (has_iop) { shinyjs::enable('create_button') }
         }
       }
 
@@ -218,6 +222,7 @@ main <- function() {
       print_exec_duration(create)
     })
 
+    shinyjs::disable('create_button')
     shinyjs::hide('inputs_div')
     shinyjs::hide('outputs_div')
     shinyjs::hide('params_div')
