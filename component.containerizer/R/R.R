@@ -10,7 +10,6 @@ main <- function() {
     cat('Execution duration of function', deparse(substitute(f)), ':\n')
     print(t)
   }
-
   ui <- fluidPage(
     shinyjs::useShinyjs(),
     h1('Component containerizer'),
@@ -53,17 +52,17 @@ main <- function() {
     parse_md <- function() {
       current_doc <<- rstudioapi::getSourceEditorContext()
       error <- ''
-      rmd <- NULL
+      rmd <- NULL          # raw parsing result
       rmd_chunks <- list() # c() causes 'Error in <-: attempt to set an attribute on NULL'
       rmd_chunk_indices <- list()
       rmd_offset_indices <- list()
       rmd_chunk_labels <- list()
       tryCatch({
         rmd <- parsermd::parse_rmd(current_doc$content)
-        for (i in seq_along(rmd)) {
+        for (i in seq_along(rmd)) { # post-processing after parsing
           node <- rmd[[i]]
           node_type <- parsermd::rmd_node_type(node)
-          if (node_type == 'rmd_chunk') {
+          if (node_type == 'rmd_chunk') { # pick out rmd chunks
             p <- length(rmd_chunks) + 1
             rmd_chunks[[p]] <- node
             rmd_chunk_indices[[p]] <- i
@@ -71,12 +70,12 @@ main <- function() {
           else if (
             (node_type == 'rmd_heading' && i < length(rmd) && parsermd::rmd_node_type(rmd[[i + 1]]) == 'rmd_markdown')
             || (node_type == 'rmd_yaml_list' && parsermd::rmd_node_length(node) == 0)
-          ) {
+          ) { # backend converts rmd to ipynb. these stmts make parsed rmd consistent with what backend yields.
             p <- length(rmd_offset_indices) + 1
             rmd_offset_indices[[p]] <- i
           }
         }
-        if (length(rmd_chunks) == 0) {
+        if (length(rmd_chunks) == 0) { # no code chunk found
           selected_code <<- ''
           updateSelectInput(session, 'code_chunk_selector', choices=choices_placeholder)
           error <- 'no code' # don't use operator<<- here, or this will be '' (blank)
@@ -104,7 +103,7 @@ main <- function() {
           )) # cat/paste0 cannot handle trailing comma in its arg list
         })
         output$creation_result_output <- renderUI({ NULL })
-        updateSelectInput(session, 'code_chunk_selector', choices=choices_placeholder)
+        updateSelectInput(session, 'code_chunk_selector', choices=choices_placeholder) # refresh the displayed code chunk
         updateSelectInput(session, 'code_chunk_selector', choices=setNames(parsing_results[['rmd_chunk_indices']], parsing_results[['rmd_chunk_labels']]))
       }
 
@@ -115,7 +114,7 @@ main <- function() {
       extract <- function() {
         cell_index <- as.numeric(input$code_chunk_selector)
 
-        output$code_output <- renderUI({
+        output$code_output <- renderUI({ # show selected code chunk
           if (is.na(cell_index)) { selected_code <<- '' }
           else {
             selected_node <- parsing_results$rmd[[cell_index]]
@@ -127,9 +126,9 @@ main <- function() {
           }
           return(HTML(paste0('<pre>', selected_code, '</pre>')))
         })
-        output$creation_result_output <- renderUI({ NULL })
+        output$creation_result_output <- renderUI({ NULL }) # remove prev cell containerization result
 
-        if (!is.na(cell_index)) {
+        if (!is.na(cell_index)) { # extract if there are code chunks and no parsing errors
           request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/extract'))
           request <- httr2::req_method(request, 'POST')
           request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'), 'Content-Type'='application/json')
@@ -149,16 +148,16 @@ main <- function() {
           }, error=function(e) { print(e) })
 
           for (category in categories) {
-            plural <- paste0(category, 's')
-            div_name <- paste0(plural, '_div')
-            prefix <- paste0(category, '_type_')
+            plural <- paste0(category, 's')      # ex. inputs
+            div_name <- paste0(plural, '_div')   # ex. input_div
+            prefix <- paste0(category, '_type_') # ex. input_type_a
             if (plural %in% names(extraction_results) && length(extraction_results[[plural]])) {
               IDs <- extraction_results[[plural]]
-              removeUI(paste0('div:has(> [id^="', prefix, '"])'), multiple=TRUE)
+              removeUI(paste0('div:has(> [id^="', prefix, '"])'), multiple=TRUE) # remove type selectors for prev extracted cell
               insertUI(selector=paste0('#', div_name), where='beforeEnd',
                        ui=tagList(lapply(1:length(IDs), function(i) { selectInput(paste0(prefix, IDs[i]), IDs[i], choices=type_choices)}))
-              )
-              shinyjs::show(div_name)
+              ) # add new type selectors for current extracted cell
+              shinyjs::show(div_name) # show this category new type selectors
             }
             else { shinyjs::hide(div_name) }
           }
