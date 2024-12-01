@@ -17,11 +17,12 @@ names <- c('Alice', 'Bob')
 
 ```{r}
 # Process name list
+library(readr)
+library(stringr)
 for (name in names) {
   print(paste0('Hello, ', name))
 }
 t <- x + y
-m <- stats::median(c(1, 2))
 print(Sys.getenv())
 print(param_p)
 ```
