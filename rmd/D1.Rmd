@@ -1,5 +1,5 @@
 ```{r}
-# give parameter p
+# value assignment
 w <- 0
 x <- 1
 y <- 2
@@ -27,7 +27,7 @@ print(param_p)
 ```
 
 ```{r}
-# print intermediate variable x
+# print
 print(t)
 print(param_a)
 ```
