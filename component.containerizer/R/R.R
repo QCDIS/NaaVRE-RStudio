@@ -240,15 +240,15 @@ main <- function() {
       }, error=function(e) { print(e) })
     }
 
-    # print_exec_duration(get_base_images) # [weird bug] why this make github action fail??
+    # print_exec_duration(get_base_images) # [weird bug] why this makes github action fail??
     t <- system.time({
-    request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/baseimagetags'))
-    request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'))
-    tryCatch({
-      response <- httr2::req_perform(request)
-      base_image_list <- httr2::resp_body_json(response)
-      updateSelectInput(session, 'base_image_selector', choices=names(base_image_list), selected='r')
-    }, error=function(e) { print(e) })
+      request <- httr2::request(stringr::str_interp('${API_ENDPOINT}/${CONTAINERIZER_PREFIX}/baseimagetags'))
+      request <- httr2::req_headers(request, Authorization=stringr::str_interp('Token ${NAAVRE_API_TOKEN}'))
+      tryCatch({
+        response <- httr2::req_perform(request)
+        base_image_list <- httr2::resp_body_json(response)
+        updateSelectInput(session, 'base_image_selector', choices=names(base_image_list), selected='r')
+      }, error=function(e) { print(e) })
     })
     cat('Execution duration of function', deparse(substitute(get_base_images)), ':\n')
     print(t)
