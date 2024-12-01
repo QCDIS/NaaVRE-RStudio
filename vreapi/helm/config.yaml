@@ -37,7 +37,7 @@ vreapi:
   image:
     repository: andybayerroswell/vreapi
     pullPolicy: IfNotPresent
-    tag: "20241130-0244"
+    tag: "20241201-1401"
 
 vreapp:
   secret_key: "dev_secret_key_vreapp"
