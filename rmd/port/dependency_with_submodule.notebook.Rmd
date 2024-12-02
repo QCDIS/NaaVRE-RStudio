@@ -1,0 +1,22 @@
+```{r}
+#Dependency resolution submodule
+library(ggplot2)
+
+# Create some sample data
+x_values = c(1, 2, 3, 4, 5)
+y_values = c(2, 4, 6, 8, 10)
+
+# Plot the data
+data <- data.frame(x=x_values, y=y_values)
+ggplot(data, aes(x = x, y = y)) +
+  geom_line() +
+  geom_point() + # Optional: add points to the line
+  labs(title = "Line Graph of Y vs X", x = "X Values", y = "Y Values")
+```
+
+```{r}
+print(x_values)
+```
+
+```{r}
+```
