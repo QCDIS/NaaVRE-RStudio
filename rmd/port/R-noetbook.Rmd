@@ -1,0 +1,12 @@
+```{r}
+# input
+a = 2 
+numbers <- c(a, 4, 6, 8, 10)
+```
+```{r}
+#csddfv
+average <- mean(numbers)
+```
+```{r}
+print(average)
+```
