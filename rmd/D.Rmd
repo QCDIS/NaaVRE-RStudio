@@ -1,0 +1,10 @@
+```{r}
+# Input list
+names = list("Alice", "Bob")
+```
+```{r}
+# Process list
+for (name in names) {
+    print(sprintf("Hello, %s!", name))
+}
+```
