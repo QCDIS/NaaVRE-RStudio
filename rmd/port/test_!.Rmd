@@ -1,0 +1,41 @@
+```{r}
+# conf
+conf_data_folder <- file.path('/tmp', 'data')
+
+conf_feature_name = 'perc_95_normalized_height'
+conf_validate_precision = '0.001'
+conf_tile_mesh_size = '10.'
+conf_filter_type= 'select_equal'
+conf_attribute = 'raw_classification'
+conf_min_x = '-113107.81'
+conf_max_x = '398892.19'
+conf_min_y = '214783.87'
+conf_max_y = '726783.87'
+conf_n_tiles_side = '512'
+conf_apply_filter_value = '1'
+conf_laz_compression_factor = '7'
+conf_max_filesize = '262144000'  # desired max file size (in bytes)
+```
+```{r}
+# Create file 
+L = 'a\nb\nc\n'
+file_path = file.path(conf_data_folder, 'hello.txt')
+fp <- file(file_path, 'w')
+writeLines(L, fp)
+close(fp)
+```
+```{r}
+#read file lines
+f <- file(file_path, 'r')
+lines = readLines(f)
+close(f)
+```
+```{r}
+#loop file lines
+count = 0
+# Strips the newline character
+for (l in lines) {
+  count = count + 1
+  print(paste0('Line', trimws(l)))
+}
+```
