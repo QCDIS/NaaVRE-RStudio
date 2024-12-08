@@ -1,0 +1,9 @@
+```{r}
+conf_a = "a"
+conf_b = conf_a + "b"
+conf_c = conf_b + "c"
+```
+
+```{r}
+conf_c
+```

@@ -1,0 +1,43 @@
+```{r}
+# params
+param_string = 'param_string value'
+param_string_with_comment = 'param_string value'  # comment
+param_int = 1
+param_float = 1.1
+```
+
+```{r}
+# Param check
+# ---
+# NaaVRE:
+#   cell:
+#     inputs:
+#       - a
+#       - b: String
+#       - c:
+#           type: Integer
+#     outputs:
+#       - e
+#       - f: Float
+#       - g:
+#           type: List
+#     params:
+#       - param_h
+#       - param_i: Float
+#       - param_j:
+#           type: List
+#       - param_k:
+#           type: List
+#           default_value: 'param_k value'
+#     confs:
+#       - conf_l:
+#           assignation: 'conf_l = 1'
+#     dependencies:
+#       - name: numpy
+#         asname: np
+# ...
+print(param_string)
+print(param_string_with_comment)
+print(param_int)
+print(param_float)
+```

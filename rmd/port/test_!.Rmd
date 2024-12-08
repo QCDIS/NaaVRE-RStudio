@@ -16,6 +16,7 @@ conf_apply_filter_value = '1'
 conf_laz_compression_factor = '7'
 conf_max_filesize = '262144000'  # desired max file size (in bytes)
 ```
+
 ```{r}
 # Create file 
 L = 'a\nb\nc\n'
@@ -24,12 +25,14 @@ fp <- file(file_path, 'w')
 writeLines(L, fp)
 close(fp)
 ```
+
 ```{r}
 #read file lines
 f <- file(file_path, 'r')
 lines = readLines(f)
 close(f)
 ```
+
 ```{r}
 #loop file lines
 count = 0
@@ -38,4 +41,43 @@ for (l in lines) {
   count = count + 1
   print(paste0('Line', trimws(l)))
 }
+```
+
+```{r}
+# Add1
+a = count + 1
+```
+
+```{r}
+#Anti-pattern
+some_list = range(1, 5)
+
+msg = '1'
+```
+
+```{r}
+# input lists
+
+list_of_paths = c("/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname")
+list_of_ints = c(1,2,35,6,65)
+print(msg)
+```
+
+```{r}
+#loop list
+
+for (l in list_of_paths) {
+    print(l)
+}
+```
+
+```{r}
+#loop int list
+for (i in list_of_ints) {
+    a = i -1
+    print(a)
+}
+```
+
+```{r}
 ```

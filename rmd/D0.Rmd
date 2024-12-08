@@ -3,14 +3,14 @@
 
 
 ```{r}
-# Input list
+# Input names
 names <- c('Alice', 'Bob')
 ```
 
 
 
 ```{r}
-# Process list
+# Process names
 for (name in names) {
   print(paste0('Hello, ', name))
 }

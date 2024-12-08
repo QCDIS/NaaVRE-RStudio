@@ -1,4 +1,4 @@
-```{r}
+```{r first-chunk}
 # Input list
 names = list("Alice", "Bob")
 ```
