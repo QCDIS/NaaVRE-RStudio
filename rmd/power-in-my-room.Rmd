@@ -1,0 +1,63 @@
+```{r}
+# [power in my room] voltage fluctuation in my room
+param_loc <- 'my home in Guangzhou'
+param_date <- '2015-07-27'
+V <- c(
+  227.4, 225.2, 226.8, 224.3, 226.4,
+  228.2, 229.5, 227.7, 226.1, 224.9,
+  223.8, 225.5, 224.7, 226.3, 225.8,
+  227.0, 225.5, 224.8, 223.9, 224.0,
+  224.2, 226.5, 225.4, 225.9, 226.1
+)
+t_ms <- c(
+  7736, 23475, 42865, 60725, 71670,
+  82597, 97533, 117407, 127786, 145281,
+  163265, 183213, 198228, 215035, 226516,
+  238519, 251346, 270956, 282424, 302031,
+  318219, 334929, 348604, 361086, 371988
+)
+```
+
+```{r}
+# [power in my room] convert from ms to s
+t_s <- lapply(t_ms, function(t) { return(t / 1000) })
+```
+
+```{r}
+# [power in my room] print basic inf
+print(paste0('location: ', param_loc))
+print(paste0('date: ', param_date))
+print(paste0('samples: ', length(t)))
+```
+
+```{r}
+# [power in my room] stat of voltage
+print('min max: ')
+print(range(V))
+print(paste0('avg: ', mean(V)))
+print(paste0('med: ', median(V)))
+print(paste0('\\sigma^2: ', var(V)))
+print('quantile: ')
+print(quantile(V))
+```
+
+```{r}
+# [power in my room] stat of time
+seconds_to_hms <- function(seconds) {
+  sprintf("%d:%02d:%02d", seconds %/% 3600, (seconds %% 3600) %/% 60, seconds %% 60)
+}
+print(paste0('duration of run: ', seconds_to_hms(t_s[[length(t_s)]])))
+delta_t_s <- diff(t)
+print(paste0('avg sample interval (s): ', mean(delta_t_s)))
+print(paste0('med sample interval (s): ', median(delta_t_s)))
+print(paste0('min sample interval (s): ', min(delta_t_s)))
+print(paste0('max sample interval (s): ', max(delta_t_s)))
+```
+
+```{r}
+# [power in my room] detailed stat
+for (i in 1:length(V)) {
+  l <- list(t_s[[i]], V[[i]])
+  print(paste0('<t', i, ', s', i, '> ', l[[1]], ' s, ', l[[2]], ' V'))
+}
+```
