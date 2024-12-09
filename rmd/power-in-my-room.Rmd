@@ -20,7 +20,7 @@ t_ms <- c(
 
 ```{r}
 # [power in my room] convert from ms to s
-t_s <- lapply(t_ms, function(t) { return(t / 1000) })
+t_s <- sapply(t_ms, function(t) { return(t / 1000) })
 ```
 
 ```{r}
@@ -44,10 +44,10 @@ print(quantile(V))
 ```{r}
 # [power in my room] stat of time
 seconds_to_hms <- function(seconds) {
-  sprintf("%d:%02d:%02d", seconds %/% 3600, (seconds %% 3600) %/% 60, seconds %% 60)
+  sprintf("%d:%02d:%02d", as.integer(seconds %/% 3600), as.integer((seconds %% 3600) %/% 60), as.integer(seconds %% 60))
 }
 print(paste0('duration of run: ', seconds_to_hms(t_s[[length(t_s)]])))
-delta_t_s <- diff(t)
+delta_t_s <- diff(t_s)
 print(paste0('avg sample interval (s): ', mean(delta_t_s)))
 print(paste0('med sample interval (s): ', median(delta_t_s)))
 print(paste0('min sample interval (s): ', min(delta_t_s)))
