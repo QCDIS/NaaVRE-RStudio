@@ -1,4 +1,4 @@
-```{r}
+```{r V-t}
 # [power in my room] voltage fluctuation in my room
 param_loc <- 'my home in Guangzhou'
 param_date <- '2015-07-27'
@@ -18,19 +18,19 @@ t_ms <- c(
 )
 ```
 
-```{r}
+```{r unitcvt}
 # [power in my room] convert from ms to s
 t_s <- sapply(t_ms, function(t) { return(t / 1000) })
 ```
 
-```{r}
+```{r prt-basics}
 # [power in my room] print basic inf
 print(paste0('location: ', param_loc))
 print(paste0('date: ', param_date))
 print(paste0('samples: ', length(t)))
 ```
 
-```{r}
+```{r prt-voltage-inf}
 # [power in my room] stat of voltage
 print('min max: ')
 print(range(V))
@@ -41,7 +41,7 @@ print('quantile: ')
 print(quantile(V))
 ```
 
-```{r}
+```{r prt-sample-inf}
 # [power in my room] stat of time
 seconds_to_hms <- function(seconds) {
   sprintf("%d:%02d:%02d", as.integer(seconds %/% 3600), as.integer((seconds %% 3600) %/% 60), as.integer(seconds %% 60))
@@ -54,7 +54,7 @@ print(paste0('min sample interval (s): ', min(delta_t_s)))
 print(paste0('max sample interval (s): ', max(delta_t_s)))
 ```
 
-```{r}
+```{r prt-all-points}
 # [power in my room] detailed stat
 for (i in 1:length(V)) {
   l <- list(t_s[[i]], V[[i]])
