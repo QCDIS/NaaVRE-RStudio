@@ -1,4 +1,4 @@
-```{r in-basics}
+```{r basics}
 # [7420-pw] input basics
 basic <- list(
   "this" = list(
@@ -11,9 +11,11 @@ basic <- list(
     "title" = "The Samsung Exynos 7420 Deep Dive - Inside A Modern 14nm SoC",
     "author" = "Andrei Frumusanu",
     "date" = "2015-06-29 6:00 EST",
+    "site" = "AnandTech",
     "URL" = "https://www.anandtech.com/show/9330/exynos-7420-deep-dive/5"
   )
 )
+print(basic)
 ```
 
 ```{r in-pw-dat}
@@ -74,5 +76,16 @@ print(q)
 ```
 
 ```{r regression}
-
+# [7420-pw] regression
+library(foreach)
+core_configs <- c("1 core", "2 cores", "3 cores", "4 cores")
+model <- list()
+tmp <- foreach(core = core_configs) %do% {
+  lm_A53 <- lm(dat$A53[[core]] ~ dat$A53$freq)
+  lm_A57 <- lm(dat$A57[[core]] ~ dat$A57$freq)
+  p <- length(model) + 1
+  model[[p]] <- summary(lm_A53)
+  model[[p + 1]] <- summary(lm_A57)
+}
+print(model)
 ```
