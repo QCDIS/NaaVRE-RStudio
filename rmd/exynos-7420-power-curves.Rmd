@@ -42,6 +42,7 @@ dat <- jsonlite::fromJSON(serialized_JSON)
 ```{r plot-pw-curves}
 # [7420-pw] plot power consumption curves
 library(ggplot2)
+param_annotation_off_x <- 75
 p <- ggplot() +
   geom_line(aes(x = dat$A53$freq, y = dat$A53$`1 core`), color = "blue") +
   geom_line(aes(x = dat$A53$freq, y = dat$A53$`2 cores`), color = "green") +
@@ -50,7 +51,11 @@ p <- ggplot() +
   labs(title = "Exynos 7420 Power Consumption Curves (Cortex-A53)",
        x = "Frequency (MHz)", y = "Power Consumption (W)",
        color = "Active Cores") +
-  theme_minimal()
+  theme_minimal() +
+  annotate("text", x = 1500 + param_annotation_off_x, y = 0.367, label = "1 core", color = "blue") +
+  annotate("text", x = 1500 + param_annotation_off_x, y = 0.606, label = "2 cores", color = "green") +
+  annotate("text", x = 1500 + param_annotation_off_x, y = 0.863, label = "3 cores", color = "orange") +
+  annotate("text", x = 1500 + param_annotation_off_x, y = 1.026, label = "4 cores", color = "red")
 q <- ggplot() +
   geom_line(aes(x = dat$A57$freq, y = dat$A57$`1 core`), color = "blue") +
   geom_line(aes(x = dat$A57$freq, y = dat$A57$`2 cores`), color = "green") +
@@ -59,7 +64,15 @@ q <- ggplot() +
   labs(title = "Exynos 7420 Power Consumption Curves (Cortex-A57)",
        x = "Frequency (MHz)", y = "Power Consumption (W)",
        color = "Active Cores") +
-  theme_minimal()
+  theme_minimal() +
+  annotate("text", x = 2100 + param_annotation_off_x, y = 1.62, label = "1 core", color = "blue") +
+  annotate("text", x = 2100 + param_annotation_off_x, y = 2.97, label = "2 cores", color = "green") +
+  annotate("text", x = 2100 + param_annotation_off_x, y = 4.19, label = "3 cores", color = "orange") +
+  annotate("text", x = 2100 + param_annotation_off_x, y = 5.481, label = "4 cores", color = "red")
 print(p)
 print(q)
+```
+
+```{r regression}
+
 ```
