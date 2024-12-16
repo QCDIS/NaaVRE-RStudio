@@ -1,5 +1,5 @@
 ```{r basics}
-# [7420-pw] input basics
+# [7420 pw] input basics
 basic <- list(
   "this" = list(
     "title" = "Exynos 7420 Power Curves",
@@ -19,7 +19,7 @@ print(basic)
 ```
 
 ```{r in-pw-dat}
-# [7420-pw] input power consumption data
+# [7420 pw] input power consumption data
 serialized_JSON <- '
 {
   "A53": {
@@ -43,7 +43,7 @@ dat <- jsonlite::fromJSON(serialized_JSON)
 ```
 
 ```{r plot-pw-curves}
-# [7420-pw] plot power consumption curves
+# [7420 pw] plot power consumption curves
 library(ggplot2)
 param_annotation_off_x <- 75
 p <- ggplot() +
@@ -81,7 +81,7 @@ print(q)
 ```
 
 ```{r regression}
-# [7420-pw] regression
+# [7420 pw] regression
 library(foreach)
 core_configs <- c("1 core", "2 cores", "3 cores", "4 cores")
 model <- list()

@@ -1,4 +1,4 @@
-```{r}
+```{r param}
 # params
 param_string = 'param_string value'
 param_string_with_comment = 'param_string value'  # comment
@@ -6,7 +6,7 @@ param_int = 1
 param_float = 1.1
 ```
 
-```{r}
+```{r prt}
 # Param check
 # ---
 # NaaVRE:

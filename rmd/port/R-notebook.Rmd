@@ -1,12 +1,13 @@
-```{r}
-# input
+```{r in}
+# [rmd-demo] input
 a = 2 
 numbers <- c(a, 4, 6, 8, 10)
 ```
-```{r}
-#csddfv
+```{r csddfv}
+# [rmd-demo] csddfv
 average <- mean(numbers)
 ```
-```{r}
+```{r out}
+# [rmd-demo] prt avg
 print(average)
 ```

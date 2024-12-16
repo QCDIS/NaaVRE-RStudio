@@ -1,5 +1,5 @@
-```{r}
-#Dependency resolution submodule
+```{r y-x}
+# [dep-test] Dependency resolution submodule
 library(ggplot2)
 
 # Create some sample data
@@ -14,7 +14,8 @@ ggplot(data, aes(x = x, y = y)) +
   labs(title = "Line Graph of Y vs X", x = "X Values", y = "Y Values")
 ```
 
-```{r}
+```{r print-x}
+# [dep-test] print x
 print(x_values)
 ```
 

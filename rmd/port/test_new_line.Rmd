@@ -1,5 +1,5 @@
-```{r}
-#Conf_bug
+```{r in}
+# [test lf] Conf_bug
 
 conf_herwijnen = c(
                    'radar_volume_full_herwijnen',
@@ -13,8 +13,8 @@ conf_denhelder = c('radar_volume_full_denhelder',
 conf_radars = list('herwijnen' = conf_herwijnen, 'denhelder' = conf_denhelder)
 ```
 
-```{r}
-#Print_cong
+```{r out}
+# [test lf] Print_cong
 
 print(conf_herwijnen)
 print(conf_denhelder)

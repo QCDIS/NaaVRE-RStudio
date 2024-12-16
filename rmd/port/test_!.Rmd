@@ -1,5 +1,5 @@
-```{r}
-# conf
+```{r in-conf}
+# [test excla] conf
 conf_data_folder <- file.path('/tmp', 'data')
 
 conf_feature_name = 'perc_95_normalized_height'
@@ -17,8 +17,8 @@ conf_laz_compression_factor = '7'
 conf_max_filesize = '262144000'  # desired max file size (in bytes)
 ```
 
-```{r}
-# Create file 
+```{r creat-fil}
+# [test excla] Create file 
 L = 'a\nb\nc\n'
 file_path = file.path(conf_data_folder, 'hello.txt')
 fp <- file(file_path, 'w')
@@ -26,15 +26,15 @@ writeLines(L, fp)
 close(fp)
 ```
 
-```{r}
-#read file lines
+```{r read}
+# [test excla] read file lines
 f <- file(file_path, 'r')
 lines = readLines(f)
 close(f)
 ```
 
-```{r}
-#loop file lines
+```{r loop}
+# [test excla] loop file lines
 count = 0
 # Strips the newline character
 for (l in lines) {
@@ -43,36 +43,36 @@ for (l in lines) {
 }
 ```
 
-```{r}
-# Add1
+```{r inc}
+# [test excla] Add1
 a = count + 1
 ```
 
-```{r}
-#Anti-pattern
+```{r anti-pattern}
+# [test excla] Anti-pattern
 some_list = range(1, 5)
 
 msg = '1'
 ```
 
-```{r}
-# input lists
+```{r in-ls}
+# [test excla] input lists
 
 list_of_paths = c("/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname","/webdav/LAZ/targets_myname")
 list_of_ints = c(1,2,35,6,65)
 print(msg)
 ```
 
-```{r}
-#loop list
+```{r prt-ls}
+# [test excla] loop list
 
 for (l in list_of_paths) {
     print(l)
 }
 ```
 
-```{r}
-#loop int list
+```{r dec-prt}
+# [test excla] loop int list
 for (i in list_of_ints) {
     a = i -1
     print(a)

@@ -1,11 +1,11 @@
-```{r}
-# a list
+```{r a-ls}
+# [param in cell nb] a list
 
 a_list = c('a', 'b', 'c', 'd')
 ```
 
-```{r}
-# process a list
+```{r proc-a-ls}
+# [param in cell nb] process a list
 
 b_list = c()
 for (elem in a_list) {
@@ -13,8 +13,8 @@ for (elem in a_list) {
 }
 ```
 
-```{r}
-# concat
+```{r concat}
+# [param in cell nb] concat
 
 res = ''
 for (elem in b_list) {
@@ -22,15 +22,15 @@ for (elem in b_list) {
 }
 ```
 
-```{r}
-#verage
+```{r verage}
+# [param in cell nb] verage
 
 a = 2
 numbers  = c(a, 4, 6, 8, 10)
 ```
 
-```{r}
-# bb
+```{r bb}
+# [param in cell nb] bb
 
 ave = mean(numbers)
 ```
@@ -40,8 +40,8 @@ ave = mean(numbers)
 
 ```
 
-```{r}
-# Param check
+```{r param-chk}
+# [param in cell nb] Param check
 
 param_density = 1
 
@@ -53,8 +53,8 @@ if (param_density == 1) {
 diameterofsedimentationchamber = 'diameterofsedimentationchamber'
 ```
 
-```{r}
-# print 
+```{r prt}
+# [param in cell nb] print 
 
 print(param_biovolume)
 param_totalbiovolume
