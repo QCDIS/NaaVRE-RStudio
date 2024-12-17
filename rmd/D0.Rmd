@@ -2,7 +2,7 @@
 
 
 
-```{r}
+```{r first-chunk}
 # Input names
 names <- c('Alice', 'Bob')
 ```

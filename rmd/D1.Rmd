@@ -1,4 +1,4 @@
-```{r}
+```{r in}
 # value assignment
 w <- 0
 x <- 1
@@ -7,7 +7,7 @@ z <- 3
 param_p <- 'abc'
 ```
 
-```{r}
+```{r in-names}
 # Input name list
 library(dplyr)
 param_a = '`'
@@ -15,7 +15,7 @@ print(w)
 names <- c('Alice', 'Bob')
 ```
 
-```{r}
+```{r proc-names}
 # Process name list
 library(readr)
 library(stringr)
@@ -27,7 +27,7 @@ print(Sys.getenv())
 print(param_p)
 ```
 
-```{r}
+```{r prt}
 # print
 print(t)
 print(param_a)
