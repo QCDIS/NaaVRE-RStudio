@@ -62,6 +62,7 @@ T_f <- function(freq) { return(index_by_numeric_key(T_f_, freq)) }
 library(ggplot2)
 library(tidyr)
 
+# Define functions for loudness calculations
 L_f <- function(L_N, alpha_f, L_U, T_f) {
   return(10 / alpha_f * log10(4e-10 ^ (0.3 - alpha_f) * (10 ^ (0.03 * L_N) - 10 ^ 0.072) + 10 ^ (alpha_f * (T_f + L_U) / 10)) - L_U)
 }
@@ -69,23 +70,29 @@ L_N <- function(L_f, alpha_f, L_U, T_f) {
   return(100 / 3 * log10((10 ^ (alpha_f * (L_f + L_U) / 10) - 10 ^ (alpha_f * (T_f + L_U) / 10)) / (4e-10 ^ (0.3 - alpha_f)) + 10 ^ 0.072))
 }
 
-Phon <- seq(from=0, to=100, by=10)
+# Create a sequence of Phon values
+Phon <- seq(from = 0, to = 130, by = 5)
 
-D <- list('freq'=freq)
+# Initialize a data frame to store results
+results <- data.frame(freq = freq)
+
+# Calculate loudness for each Phon value and store in the results data frame
 for (p in Phon) {
-  p_ <- as.character(p)
-  tmp <- list()
-  for (f in freq) {
-    tmp[[length(tmp) + 1]] <- L_f(p, alpha_f(f), L_U(f), T_f(f))
-  }
-  D[[p_]] <- unlist(tmp)
+  results[[as.character(p)]] <- sapply(freq, function(f) L_f(p, alpha_f(f), L_U(f), T_f(f)))
 }
 
-print(D[['freq']])
-print(D[['0']])
+# Reshape the data for ggplot
+results_long <- pivot_longer(results, cols = -freq, names_to = "Phon", values_to = "Loudness")
 
-chart <- ggplot() +
-  geom_line(aes(x=D[['freq']], y=D[['0']])) +
-  scale_x_log10()
+# Convert Phon to a factor for better color mapping
+results_long$Phon <- factor(results_long$Phon, levels=as.character(Phon))
+
+# Plotting
+chart <- ggplot(results_long, aes(x = freq, y = Loudness, color = Phon)) +
+  geom_line() +
+  scale_x_log10() +
+  labs(title = "Equal Loudness Curves (ISO 226:2023)", x = "Frequency (Hz)", y = "Loudness Level (dB)", color = "Phon") +
+  theme_minimal()
 print(chart)
+
 ```
