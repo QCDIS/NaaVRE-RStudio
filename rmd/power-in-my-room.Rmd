@@ -61,3 +61,9 @@ for (i in 1:length(V)) {
   print(paste0('<t', i, ', s', i, '> ', l[[1]], ' s, ', l[[2]], ' V'))
 }
 ```
+
+```{r ser}
+# [pw in my room] serialize
+library(jsonlite)
+print(jsonlite::toJSON(list('V'=V, 't (ms)'=t_ms)))
+```

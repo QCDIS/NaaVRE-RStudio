@@ -5,7 +5,9 @@ library(ggplot2)
 # Create some sample data
 x_values = c(1, 2, 3, 4, 5)
 y_values = c(2, 4, 6, 8, 10)
+```
 
+```{r plot}
 # Plot the data
 data <- data.frame(x=x_values, y=y_values)
 ggplot(data, aes(x = x, y = y)) +
