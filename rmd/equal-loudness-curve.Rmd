@@ -60,6 +60,7 @@ T_f <- function(freq) { return(index_by_numeric_key(T_f_, freq)) }
 ```{r plot}
 # [demo ELC] plot equal loudness curve
 library(ggplot2)
+library(tidyr)
 
 L_f <- function(L_N, alpha_f, L_U, T_f) {
   return(10 / alpha_f * log10(4e-10 ^ (0.3 - alpha_f) * (10 ^ (0.03 * L_N) - 10 ^ 0.072) + 10 ^ (alpha_f * (T_f + L_U) / 10)) - L_U)
@@ -70,18 +71,18 @@ L_N <- function(L_f, alpha_f, L_U, T_f) {
 
 Phon <- seq(from=0, to=100, by=10)
 
-Y <- list()
+D <- data.frame(freq = freq)
 for (p in Phon) {
   p_ <- as.character(p)
   tmp <- c()
   for (f in freq) {
     tmp[[length(tmp) + 1]] <- L_f(p, alpha_f(f), L_U(f), T_f(f))
   }
-  Y[[p_]] <- tmp
+  print(tmp)
+  D[p_] <- tmp
 }
 
-print(
-  ggplot() + 
-    geom_line(aes(x = freq, y = Y[[p_]]))
-)
+D_long <- pivot_longer(D, cols=-freq, values_to='values')
+chart <- ggplot(D_long, aes(x = freq, y = values)) + geom_line() + theme_minimal()
+print(chart)
 ```
