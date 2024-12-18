@@ -10,6 +10,7 @@ basic <- list(
 
 ```{r read}
 # [demo ELC] load parameter table
+library(readr)
 raw_param_table <- '
 freq,alpha_f,L_U,T_f
 20,0.635,-31.5,78.1
@@ -46,7 +47,7 @@ dat <- read_csv(raw_param_table, col_types='dddd')
 dat <- lapply(dat, function(col) col)
 ```
 
-```{r out}
+```{r preparations}
 index_by_numeric_key <- function(S, k) { return(S[[as.character(k)]]) }
 freq <- dat[['freq']]
 alpha_f_ <- setNames(dat[['alpha_f']], freq)
@@ -57,11 +58,17 @@ T_f_ <- setNames(dat[['T_f']], freq)
 T_f <- function(freq) { return(index_by_numeric_key(T_f_, freq)) }
 ```
 
+```{r plot-settings}
+# Create a sequence of Phon values
+library(scales)
+Phon <- seq(from = 0, to = 140, by = 5)
+breaks <- list(x=breaks_log(n=length(freq)), y=seq(0, 150, by=10))
+```
+
 ```{r plot}
 # [demo ELC] plot equal loudness curve
 library(ggplot2)
 library(tidyr)
-library(scales)
 
 # Define functions for loudness calculations
 L_f <- function(L_N, alpha_f, L_U, T_f) {
@@ -70,9 +77,6 @@ L_f <- function(L_N, alpha_f, L_U, T_f) {
 L_N <- function(L_f, alpha_f, L_U, T_f) {
   return(100 / 3 * log10((10 ^ (alpha_f * (L_f + L_U) / 10) - 10 ^ (alpha_f * (T_f + L_U) / 10)) / (4e-10 ^ (0.3 - alpha_f)) + 10 ^ 0.072))
 }
-
-# Create a sequence of Phon values
-Phon <- seq(from = 0, to = 130, by = 5)
 
 # Initialize a data frame to store results
 results <- data.frame(freq = freq)
@@ -91,8 +95,8 @@ results_long[['Phon']] <- factor(results_long[['Phon']], levels=as.character(Pho
 # Plotting
 chart <- ggplot(results_long, aes(x = freq, y = Loudness, color = Phon)) +
   geom_line() +
-  scale_x_log10(breaks=breaks_log(n=length(freq))) +
-  scale_y_continuous(breaks=seq(0, 150, by=5))
+  scale_x_log10(breaks=breaks[['x']]) +
+  scale_y_continuous(breaks=breaks[['y']])
   labs(title = "Equal Loudness Curves (ISO 226:2023)", x = "Frequency (Hz)", y = "Loudness Level (dB)", color = "Phon") +
   theme_minimal()
 print(chart)

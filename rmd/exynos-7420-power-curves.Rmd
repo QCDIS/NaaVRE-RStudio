@@ -37,7 +37,6 @@ serialized_JSON <- '
   }
 }
 '
-print(serialized_JSON)
 dat <- jsonlite::fromJSON(serialized_JSON)
 ```
 
