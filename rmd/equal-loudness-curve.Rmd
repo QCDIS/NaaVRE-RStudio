@@ -85,7 +85,7 @@ for (p in Phon) {
 results_long <- pivot_longer(results, cols = -freq, names_to = "Phon", values_to = "Loudness")
 
 # Convert Phon to a factor for better color mapping
-results_long$Phon <- factor(results_long$Phon, levels=as.character(Phon))
+results_long[['Phon']] <- factor(results_long[['Phon']], levels=as.character(Phon))
 
 # Plotting
 chart <- ggplot(results_long, aes(x = freq, y = Loudness, color = Phon)) +
