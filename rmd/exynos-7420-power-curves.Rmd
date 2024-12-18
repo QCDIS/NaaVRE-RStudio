@@ -15,7 +15,6 @@ basic <- list(
     "URL" = "https://www.anandtech.com/show/9330/exynos-7420-deep-dive/5"
   )
 )
-print(basic)
 ```
 
 ```{r in-pw-dat}
@@ -43,6 +42,7 @@ dat <- jsonlite::fromJSON(serialized_JSON)
 ```
 
 ```{r plot-settings}
+# [7420-pw] plot settings
 param_annotation_off_x <- 75
 color <- list('1 core'="blue", "2 cores"="green", "3 cores"="orange", "4 cores"="red")
 ```
@@ -50,19 +50,19 @@ color <- list('1 core'="blue", "2 cores"="green", "3 cores"="orange", "4 cores"=
 ```{r prt-basics}
 # [7420 pw] print basics
 print('This doc:')
-print(basic$this)
+print(basic[['this']])
 print('Source:')
-print(basic$src)
+print(basic[['src']])
 ```
 
 ```{r plot-pw-curves}
 # [7420 pw] plot power consumption curves
 library(ggplot2)
 p <- ggplot() +
-  geom_line(aes(x = dat$A53$freq, y = dat$A53$`1 core`), color = color[['1 core']]) +
-  geom_line(aes(x = dat$A53$freq, y = dat$A53$`2 cores`), color = color[['2 cores']]) +
-  geom_line(aes(x = dat$A53$freq, y = dat$A53$`3 cores`), color = color[['3 cores']]) +
-  geom_line(aes(x = dat$A53$freq, y = dat$A53$`4 cores`), color = color[['4 cores']]) +
+  geom_line(aes(x = dat[['A53']][['freq']], y = dat[['A53']][['1 core']]), color = color[['1 core']]) +
+  geom_line(aes(x = dat[['A53']][['freq']], y = dat[['A53']][['2 cores']]), color = color[['2 cores']]) +
+  geom_line(aes(x = dat[['A53']][['freq']], y = dat[['A53']][['3 cores']]), color = color[['3 cores']]) +
+  geom_line(aes(x = dat[['A53']][['freq']], y = dat[['A53']][['4 cores']]), color = color[['4 cores']]) +
   labs(
     title = "Exynos 7420 Power Consumption Curves (Cortex-A53)",
     x = "Frequency (MHz)", y = "Power Consumption (W)",
@@ -74,10 +74,10 @@ p <- ggplot() +
   annotate("text", x = 1500 + param_annotation_off_x, y = 0.863, label = "3 cores", color = color[['3 cores']]) +
   annotate("text", x = 1500 + param_annotation_off_x, y = 1.026, label = "4 cores", color = color[['4 cores']])
 q <- ggplot() +
-  geom_line(aes(x = dat$A57$freq, y = dat$A57$`1 core`), color = color[['1 core']]) +
-  geom_line(aes(x = dat$A57$freq, y = dat$A57$`2 cores`), color = color[['2 cores']]) +
-  geom_line(aes(x = dat$A57$freq, y = dat$A57$`3 cores`), color = color[['3 cores']]) +
-  geom_line(aes(x = dat$A57$freq, y = dat$A57$`4 cores`), color = color[['4 cores']]) +
+  geom_line(aes(x = dat[['A57']][['freq']], y = dat[['A57']][['1 core']]), color = color[['1 core']]) +
+  geom_line(aes(x = dat[['A57']][['freq']], y = dat[['A57']][['2 cores']]), color = color[['2 cores']]) +
+  geom_line(aes(x = dat[['A57']][['freq']], y = dat[['A57']][['3 cores']]), color = color[['3 cores']]) +
+  geom_line(aes(x = dat[['A57']][['freq']], y = dat[['A57']][['4 cores']]), color = color[['4 cores']]) +
   labs(
     title = "Exynos 7420 Power Consumption Curves (Cortex-A57)",
     x = "Frequency (MHz)", y = "Power Consumption (W)",
@@ -97,12 +97,10 @@ print(q)
 library(foreach)
 core_configs <- c("1 core", "2 cores", "3 cores", "4 cores")
 model <- list()
-tmp <- foreach(core = core_configs) %do% {
-  lm_A53 <- lm(dat$A53[[core]] ~ dat$A53$freq)
-  lm_A57 <- lm(dat$A57[[core]] ~ dat$A57$freq)
-  p <- length(model) + 1
-  model[[p]] <- summary(lm_A53)
-  model[[p + 1]] <- summary(lm_A57)
+for (core_config in core_configs) {
+  pos <- length(model) + 1
+  model[[pos]] <- summary(lm(dat[['A53']][[core_config]] ~ dat[['A53']][['freq']]))
+  model[[pos + 1]] <- summary(lm(dat[['A57']][[core_config]] ~ dat[['A57']][['freq']]))
 }
 print(model)
 ```
