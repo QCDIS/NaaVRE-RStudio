@@ -85,6 +85,7 @@ print(D[['freq']])
 print(D[['0']])
 
 chart <- ggplot() +
-  geom_line(aes(x=D[['freq']], y=D[['0']]))
+  geom_line(aes(x=D[['freq']], y=D[['0']])) +
+  scale_x_log10()
 print(chart)
 ```
