@@ -61,6 +61,7 @@ T_f <- function(freq) { return(index_by_numeric_key(T_f_, freq)) }
 # [demo ELC] plot equal loudness curve
 library(ggplot2)
 library(tidyr)
+library(scales)
 
 # Define functions for loudness calculations
 L_f <- function(L_N, alpha_f, L_U, T_f) {
@@ -90,9 +91,9 @@ results_long[['Phon']] <- factor(results_long[['Phon']], levels=as.character(Pho
 # Plotting
 chart <- ggplot(results_long, aes(x = freq, y = Loudness, color = Phon)) +
   geom_line() +
-  scale_x_log10() +
+  scale_x_log10(breaks=breaks_log(n=length(freq))) +
+  scale_y_continuous(breaks=seq(0, 150, by=5))
   labs(title = "Equal Loudness Curves (ISO 226:2023)", x = "Frequency (Hz)", y = "Loudness Level (dB)", color = "Phon") +
   theme_minimal()
 print(chart)
-
 ```
