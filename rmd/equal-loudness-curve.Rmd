@@ -8,16 +8,6 @@ basic <- list(
 )
 ```
 
-```{r formulas}
-# [demo ELC] formulas
-L_f <- function(L_N, alpha_f, L_U, T_f) {
-  return(10 / alpha_f * log10(4e-10 ^ (0.3 - alpha_f) * (10 ^ (0.03 * L_N) - 10 ^ 0.072) + 10 ^ (alpha_f * (T_f + L_U) / 10)) - L_U)
-}
-L_N = function(L_f, alpha_f, L_U, T_f) {
-  return(100 / 3 * log10((10 ^ (alpha_f * (L_f + L_U) / 10) - 10 ^ (alpha_f * (T_f + L_U) / 10)) / (4e-10 ^ (0.3 - alpha_f)) + 10 ^ 0.072))
-}
-```
-
 ```{r read}
 # [demo ELC] load parameter table
 raw_param_table <- '
@@ -52,10 +42,46 @@ freq,alpha_f,L_U,T_f
 10000,0.323,-10.9,13.9
 12500,0.354,-3.5,12.3
 '
-dat <- read_csv(raw_param_table)
+dat <- read_csv(raw_param_table, col_types='dddd')
 dat <- lapply(dat, function(col) col)
 ```
 
 ```{r out}
-print(dat[['freq']])
+index_by_numeric_key <- function(S, k) { return(S[[as.character(k)]]) }
+freq <- dat[['freq']]
+alpha_f_ <- setNames(dat[['alpha_f']], freq)
+alpha_f <- function(freq) { return(index_by_numeric_key(alpha_f_, freq)) }
+L_U_ <- setNames(dat[['L_U']], freq)
+L_U <- function(freq) { return(index_by_numeric_key(L_U_, freq)) }
+T_f_ <- setNames(dat[['T_f']], freq)
+T_f <- function(freq) { return(index_by_numeric_key(T_f_, freq)) }
+```
+
+```{r plot}
+# [demo ELC] plot equal loudness curve
+library(ggplot2)
+
+L_f <- function(L_N, alpha_f, L_U, T_f) {
+  return(10 / alpha_f * log10(4e-10 ^ (0.3 - alpha_f) * (10 ^ (0.03 * L_N) - 10 ^ 0.072) + 10 ^ (alpha_f * (T_f + L_U) / 10)) - L_U)
+}
+L_N <- function(L_f, alpha_f, L_U, T_f) {
+  return(100 / 3 * log10((10 ^ (alpha_f * (L_f + L_U) / 10) - 10 ^ (alpha_f * (T_f + L_U) / 10)) / (4e-10 ^ (0.3 - alpha_f)) + 10 ^ 0.072))
+}
+
+Phon <- seq(from=0, to=100, by=10)
+
+Y <- list()
+for (p in Phon) {
+  p_ <- as.character(p)
+  tmp <- c()
+  for (f in freq) {
+    tmp[[length(tmp) + 1]] <- L_f(p, alpha_f(f), L_U(f), T_f(f))
+  }
+  Y[[p_]] <- tmp
+}
+
+print(
+  ggplot() + 
+    geom_line(aes(x = freq, y = Y[[p_]]))
+)
 ```
