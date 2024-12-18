@@ -71,18 +71,20 @@ L_N <- function(L_f, alpha_f, L_U, T_f) {
 
 Phon <- seq(from=0, to=100, by=10)
 
-D <- data.frame(freq = freq)
+D <- list('freq'=freq)
 for (p in Phon) {
   p_ <- as.character(p)
-  tmp <- c()
+  tmp <- list()
   for (f in freq) {
     tmp[[length(tmp) + 1]] <- L_f(p, alpha_f(f), L_U(f), T_f(f))
   }
-  print(tmp)
-  D[p_] <- tmp
+  D[[p_]] <- unlist(tmp)
 }
 
-D_long <- pivot_longer(D, cols=-freq, values_to='values')
-chart <- ggplot(D_long, aes(x = freq, y = values)) + geom_line() + theme_minimal()
+print(D[['freq']])
+print(D[['0']])
+
+chart <- ggplot() +
+  geom_line(aes(x=D[['freq']], y=D[['0']]))
 print(chart)
 ```
