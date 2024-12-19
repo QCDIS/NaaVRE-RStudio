@@ -48,6 +48,7 @@ dat <- lapply(dat, function(col) col)
 ```
 
 ```{r preparations}
+# [demo ELC] arrange data
 index_by_numeric_key <- function(S, k) { return(S[[as.character(k)]]) }
 freq <- dat[['freq']]
 alpha_f_ <- setNames(dat[['alpha_f']], freq)
@@ -59,7 +60,7 @@ T_f <- function(freq) { return(index_by_numeric_key(T_f_, freq)) }
 ```
 
 ```{r plot-settings}
-# Create a sequence of Phon values
+# [demo ELC] params for plot
 library(scales)
 Phon <- seq(from = 0, to = 140, by = 5)
 breaks <- list(x=breaks_log(n=length(freq)), y=seq(0, 150, by=10))
@@ -74,9 +75,6 @@ library(tidyr)
 L_f <- function(L_N, alpha_f, L_U, T_f) {
   return(10 / alpha_f * log10(4e-10 ^ (0.3 - alpha_f) * (10 ^ (0.03 * L_N) - 10 ^ 0.072) + 10 ^ (alpha_f * (T_f + L_U) / 10)) - L_U)
 }
-L_N <- function(L_f, alpha_f, L_U, T_f) {
-  return(100 / 3 * log10((10 ^ (alpha_f * (L_f + L_U) / 10) - 10 ^ (alpha_f * (T_f + L_U) / 10)) / (4e-10 ^ (0.3 - alpha_f)) + 10 ^ 0.072))
-}
 
 # Initialize a data frame to store results
 results <- data.frame(freq = freq)
@@ -85,6 +83,9 @@ results <- data.frame(freq = freq)
 for (p in Phon) {
   results[[as.character(p)]] <- sapply(freq, function(f) L_f(p, alpha_f(f), L_U(f), T_f(f)))
 }
+
+# for compatibility
+reshaped_results <- as.list(results)
 
 # Reshape the data for ggplot
 results_long <- pivot_longer(results, cols = -freq, names_to = "Phon", values_to = "Loudness")
@@ -100,4 +101,33 @@ chart <- ggplot(results_long, aes(x = freq, y = Loudness, color = Phon)) +
   labs(title = "Equal Loudness Curves (ISO 226:2023)", x = "Frequency (Hz)", y = "Loudness Level (dB)", color = "Phon") +
   theme_minimal()
 print(chart)
+```
+
+```{r examples-settings}
+param_seed <- 0
+param_examples <- 10
+min_dB <- 0
+max_dB <- 150
+digits <- 1
+```
+
+```{r examples}
+library(stringr)
+
+L_N <- function(L_f, alpha_f, L_U, T_f) {
+  return(100 / 3 * log10((10 ^ (alpha_f * (L_f + L_U) / 10) - 10 ^ (alpha_f * (T_f + L_U) / 10)) / (4e-10 ^ (0.3 - alpha_f)) + 10 ^ 0.072))
+}
+
+set.seed(param_seed)
+sound <- cbind(
+  sample(freq, size=param_examples, replace=TRUE),
+  round(runif(param_examples, min=min_dB, max=max_dB), digits=digits)
+)
+
+for (row in 1:nrow(sound)) {
+  f <- sound[row, 1]
+  p <- sound[row, 2]
+  idx <- which(freq == f)
+  print(stringr::str_interp("A sound (${f} Hz, ${p} dB), is ${round(p + 40 - reshaped_results[['40']][[idx]], digits=digits)} dBA, ${round(p + 70 - reshaped_results[['70']][[idx]], digits=digits)} dBB, ${round(p + 100 - reshaped_results[['100']][[idx]], digits=digits)} dBC, and ${round(L_N(p, alpha_f(f), L_U(f), T_f(f)), digits=digits)} Phon."))
+}
 ```
