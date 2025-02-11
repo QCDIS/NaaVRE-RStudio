@@ -66,6 +66,11 @@ Phon <- seq(from = 0, to = 140, by = 5)
 breaks <- list(x=breaks_log(n=length(freq)), y=seq(0, 150, by=10))
 ```
 
+```{r out-basics}
+# [demo ELC] print basics
+print(basic)
+```
+
 ```{r plot}
 # [demo ELC] plot equal loudness curve
 library(ggplot2)
@@ -94,7 +99,7 @@ results_long <- pivot_longer(results, cols = -freq, names_to = "Phon", values_to
 results_long[['Phon']] <- factor(results_long[['Phon']], levels=as.character(Phon))
 
 # Plotting
-chart <- ggplot(results_long, aes(x = freq, y = Loudness, color = Phon)) +
+chart <- ggplot(results_long, aes(x = `freq`, y = `Loudness`, color = `Phon`)) +
   geom_line() +
   scale_x_log10(breaks=breaks[['x']]) +
   scale_y_continuous(breaks=breaks[['y']])
@@ -104,14 +109,16 @@ print(chart)
 ```
 
 ```{r examples-settings}
+# [demo ELC] example settings
 param_seed <- 0
-param_examples <- 10
+examples <- 10
 min_dB <- 0
 max_dB <- 150
-digits <- 1
+param_digits <- 1
 ```
 
 ```{r examples}
+# [demo ELC] examples of loudness units
 library(stringr)
 
 L_N <- function(L_f, alpha_f, L_U, T_f) {
@@ -120,14 +127,14 @@ L_N <- function(L_f, alpha_f, L_U, T_f) {
 
 set.seed(param_seed)
 sound <- cbind(
-  sample(freq, size=param_examples, replace=TRUE),
-  round(runif(param_examples, min=min_dB, max=max_dB), digits=digits)
+  sample(freq, size=examples, replace=TRUE),
+  round(runif(examples, min=min_dB, max=max_dB), digits=param_digits)
 )
 
 for (row in 1:nrow(sound)) {
   f <- sound[row, 1]
   p <- sound[row, 2]
   idx <- which(freq == f)
-  print(stringr::str_interp("A sound (${f} Hz, ${p} dB), is ${round(p + 40 - reshaped_results[['40']][[idx]], digits=digits)} dBA, ${round(p + 70 - reshaped_results[['70']][[idx]], digits=digits)} dBB, ${round(p + 100 - reshaped_results[['100']][[idx]], digits=digits)} dBC, and ${round(L_N(p, alpha_f(f), L_U(f), T_f(f)), digits=digits)} Phon."))
+  print(stringr::str_interp("A sound (${f} Hz, ${p} dB), is ${round(p + 40 - reshaped_results[['40']][[idx]], digits=param_digits)} dBA, ${round(p + 70 - reshaped_results[['70']][[idx]], digits=param_digits)} dBB, ${round(p + 100 - reshaped_results[['100']][[idx]], digits=param_digits)} dBC, and ${round(L_N(p, alpha_f(f), L_U(f), T_f(f)), digits=param_digits)} Phon."))
 }
 ```

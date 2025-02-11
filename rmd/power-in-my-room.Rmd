@@ -27,7 +27,7 @@ t_s <- sapply(t_ms, function(t) { return(t / 1000) })
 # [pw in my room] print basic inf
 print(paste0('location: ', param_loc))
 print(paste0('date: ', param_date))
-print(paste0('samples: ', length(t)))
+print(paste0('samples: ', length(t_ms)))
 ```
 
 ```{r prt-voltage-inf}
