@@ -50,3 +50,4 @@ rsconnect/
 
 # test file repllicas for convenience
 rmd/**/*.[0-9]*.Rmd
+rmd/**/*.[0-9]*.ipynb
