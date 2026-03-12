@@ -210,8 +210,8 @@ main <- function() {
         request <- httr2::req_body_raw(request, rjson::toJSON(extraction_results))
         tryCatch({
           response <- httr2::req_perform(request)
-          print(paste0('For ', parsermd::rmd_node_label(parsing_results[['rmd']][[as.integer(input$code_chunk_selector)]]), ' :'))
-          print(httr2::resp_body_json(response))
+          # print(paste0('For ', parsermd::rmd_node_label(parsing_results[['rmd']][[as.integer(input$code_chunk_selector)]]), ' :'))
+          # print(httr2::resp_body_json(response))
           output$creation_result_output <- renderUI({ HTML('<p style="color:green;">The cell has been successfully created!</p>') })
         }, error=function(e) {
           print(e)
